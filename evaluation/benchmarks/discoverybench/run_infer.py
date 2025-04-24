@@ -1,6 +1,8 @@
 import asyncio
 import json
 import os
+import shutil
+from pathlib import Path
 
 import git
 import pandas as pd
@@ -52,6 +54,7 @@ LIBRARIES = [
 
 AGENT_CLS_TO_FAKE_USER_RESPONSE_FN = {
     'CodeActAgent': codeact_user_response,
+    'ErrorBenchAgent': codeact_user_response,
 }
 
 AGENT_CLS_TO_INST_SUFFIX = {
@@ -77,11 +80,11 @@ def get_config(
     config.set_llm_config(metadata.llm_config)
     agent_config = config.get_agent_config(metadata.agent_class)
     agent_config.enable_prompt_extensions = False
-    agent_config = AgentConfig(
-        function_calling=False,
-        codeact_enable_jupyter=True,
-        codeact_enable_browsing_delegate=True,
-    )
+    agent_config = AgentConfig()
+    #     function_calling=False,
+    #     codeact_enable_jupyter=True,
+    #     codeact_enable_browsing_delegate=True,
+    # )
     config.set_agent_config(agent_config)
     return config
 
@@ -284,7 +287,6 @@ def process_instance(
     runtime = create_runtime(config)
     call_async_from_sync(runtime.connect)
     initialize_runtime(runtime, instance.data_files)
-
     state: State | None = asyncio.run(
         run_controller(
             config=config,
@@ -305,6 +307,7 @@ def process_instance(
     # history is now available as a stream of events, rather than list of pairs of (Action, Observation)
     # for compatibility with the existing output format, we can remake the pairs here
     # remove when it becomes unnecessary
+
     histories = compatibility_for_eval_history_pairs(state.history)
 
     # DiscoveryBench Evaluation
@@ -320,7 +323,6 @@ def process_instance(
     )
 
     test_result['eval_rec'] = eval_rec
-
     output = EvalOutput(
         instance_id=str(instance.instance_id),
         instruction=instruction,
@@ -470,7 +472,13 @@ if __name__ == '__main__':
         llm_config.modify_params = False
     if llm_config is None:
         raise ValueError(f'Could not find LLM config: --llm_config {args.llm_config}')
+    import datetime
 
+    date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    metadata_dir = Path(args.eval_output_dir) / str(date)
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    args.eval_output_dir = str(metadata_dir)
+    args.max_iterations = 4
     metadata = make_metadata(
         llm_config,
         'discoverybench-python',
@@ -481,7 +489,6 @@ if __name__ == '__main__':
     )
     output_file = os.path.join(metadata.eval_output_dir, 'output.jsonl')
     instances = prepare_dataset(dataset, output_file, args.eval_n_limit)
-
     run_evaluation(
         instances,
         metadata,
@@ -489,3 +496,5 @@ if __name__ == '__main__':
         args.eval_num_workers,
         process_instance,
     )
+
+    shutil.copyfile(output_file, Path('trajectory-visualizer/public') / 'output.jsonl')

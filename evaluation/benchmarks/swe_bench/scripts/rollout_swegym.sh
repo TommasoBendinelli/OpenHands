@@ -48,8 +48,22 @@ export RUN_WITH_BROWSING=false
 echo "USE_HINT_TEXT: $USE_HINT_TEXT"
 EVAL_NOTE="$OPENHANDS_VERSION-no-hint-$EXP_NAME"
 
+COMMAND="poetry run python evaluation/benchmarks/swe_bench/run_infer.py \
+    --agent-cls CodeActAgent \
+    --llm-config $MODEL \
+    --max-iterations $MAX_ITER \
+    --eval-num-workers $N_WORKERS \
+    --eval-note $eval_note \
+    --dataset $DATASET \
+    --split $SPLIT"
+
+# Echo the command to be run
+echo "Running command: $COMMAND"
+
 function run_eval() {
   local eval_note=$1
+
+
   COMMAND="poetry run python evaluation/benchmarks/swe_bench/run_infer.py \
     --agent-cls CodeActAgent \
     --llm-config $MODEL \
@@ -67,7 +81,6 @@ function run_eval() {
   # Run the command
   eval $COMMAND
 }
-
 for run_idx in $(seq 1 $N_RUNS); do
 
     while true; do
@@ -75,6 +88,7 @@ for run_idx in $(seq 1 $N_RUNS); do
         unset SANDBOX_ENV_GITHUB_TOKEN # prevent the agent from using the github token to push
         current_eval_note="$EVAL_NOTE-run_$run_idx"
         echo "EVAL_NOTE: $current_eval_note"
+
         INFER_OUTPUT=$(run_eval $current_eval_note)
         INFER_STATUS=$?  # Capture the exit status of run_infer.sh
         echo "INFER_STATUS: $INFER_STATUS"
@@ -89,7 +103,6 @@ for run_idx in $(seq 1 $N_RUNS); do
             echo "### Inference failed with exit code $INFER_STATUS. Retrying... ###"
         fi
     done
-
     # Extract the output directory using the special delimiters
     OUTPUT_FILE=$(echo "$INFER_OUTPUT" | grep -o '### OUTPUT FILE:.* ###' | sed 's/### OUTPUT FILE: \(.*\) ###/\1/')
     echo "Got OUTPUT_FILE: $OUTPUT_FILE"

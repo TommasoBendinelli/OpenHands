@@ -172,16 +172,9 @@ def make_metadata(
     agent_config: AgentConfig | None = None,
     condenser_config: CondenserConfig | None = None,
 ) -> EvalMetadata:
-    model_name = llm_config.model.split('/')[-1]
-    model_path = model_name.replace(':', '_').replace('@', '-')
     eval_note = f'_N_{eval_note}' if eval_note else ''
 
-    eval_output_path = os.path.join(
-        eval_output_dir,
-        dataset_name,
-        agent_class,
-        f'{model_path}_maxiter_{max_iterations}{eval_note}',
-    )
+    eval_output_path = eval_output_dir
 
     pathlib.Path(eval_output_path).mkdir(parents=True, exist_ok=True)
     pathlib.Path(os.path.join(eval_output_path, 'logs')).mkdir(
@@ -255,10 +248,15 @@ def prepare_dataset(
                 f'Randomly sampling {eval_n_limit} unique instances with random seed 42.'
             )
     elif eval_n_limit and eval_n_limit > 0:
-        # Use fixed random seed 42 for sampling without replacement
-        dataset = dataset.sample(
-            min(eval_n_limit, len(dataset)), random_state=42, replace=False
-        )
+        # dataset = dataset.loc[dataset["instance_id"].isin(["ACSF1"])]
+        # Duplicate 10 instances to test the sampling
+        # dataset = pd.concat([dataset] * 3, ignore_index=True)
+
+        # # Use fixed random seed 42 for sampling without replacement
+        # dataset = dataset.sample(
+        #     min(eval_n_limit, len(dataset)), random_state=42, replace=False
+        # )
+        dataset = dataset.iloc[2:]
         logger.info(
             f'Randomly sampling {eval_n_limit} unique instances with random seed 42.'
         )
