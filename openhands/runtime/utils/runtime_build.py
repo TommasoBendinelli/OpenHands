@@ -178,7 +178,6 @@ def build_runtime_image_in_folder(
     versioned_image_name = f'{runtime_image_repo}:{versioned_tag}'
     source_tag = f'{lock_tag}_{get_hash_for_source_files()}'
     hash_image_name = f'{runtime_image_repo}:{source_tag}'
-
     logger.info(f'Building image: {hash_image_name}')
     if force_rebuild:
         logger.debug(
@@ -357,7 +356,6 @@ def _build_sandbox_image(
     if versioned_tag is not None:
         names.append(f'{runtime_image_repo}:{versioned_tag}')
     names = [name for name in names if not runtime_builder.image_exists(name, False)]
-
     image_name = runtime_builder.build(
         path=str(build_folder),
         tags=names,

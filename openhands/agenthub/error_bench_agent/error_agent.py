@@ -172,7 +172,6 @@ class ErrorAgent(Agent):
         logger.debug(
             f'Processing {len(condensed_history)} events from a total of {len(state.history)} events'
         )
-
         messages = self._get_messages(condensed_history)
         params: dict = {
             'messages': self.llm.format_messages_for_llm(messages),
@@ -209,6 +208,7 @@ class ErrorAgent(Agent):
         # log to litellm proxy if possible
         params['extra_body'] = {'metadata': state.to_llm_metadata(agent_name=self.name)}
         response = self.llm.completion(**params)
+
         logger.debug(f'Response from LLM: {response}')
         actions = self.response_to_actions_fn(response)
         logger.debug(f'Actions after response_to_actions: {actions}')

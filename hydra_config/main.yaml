@@ -1,0 +1,11 @@
+number_of_expiments: 4
+llm_config: open_router
+eval_num_workers: 1
+eval_n_limit: 1
+eval_output_dir: # To be filled in by the script
+agent_cls: error_bench_agent
+eval_note: temp
+constraints: 0
+hydra:
+  job:
+    chdir: false

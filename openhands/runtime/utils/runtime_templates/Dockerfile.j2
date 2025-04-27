@@ -177,6 +177,12 @@ RUN chmod -R a+rwx /workspace/.vscode/settings.json
 COPY ./code/openhands /openhands/code/openhands
 RUN chmod a+rwx /openhands/code/openhands/__init__.py
 
+# ARG VSCODE_COMMIT=7c6fdfb0b8f2f675eb0b47f3d95eeca78962565b
+# RUN apt-get update && apt-get install -y curl ca-certificates \
+#  && mkdir -p /root/.vscode-server/bin/${VSCODE_COMMIT} \
+#  && curl -SL "https://update.code.visualstudio.com/commit/${VSCODE_COMMIT}/server-linux-x64/stable" \
+#  | tar -xz --strip-components=1 -C /root/.vscode-server/bin/${VSCODE_COMMIT}
+
 {{ setup_vscode_server() }}
 
 # ================================================================

@@ -113,7 +113,6 @@ class DockerRuntime(ActionExecutionClient):
 
         # Buffer for container logs
         self.log_streamer: LogStreamer | None = None
-
         super().__init__(
             config,
             event_stream,

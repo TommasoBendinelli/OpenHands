@@ -158,7 +158,6 @@ class DockerRuntimeBuilder(RuntimeBuilder):
         self.rolling_logger.start(
             f'================ {buildx_cmd[0].upper()} BUILD STARTED ================'
         )
-
         builder_cmd = ['docker', 'buildx', 'use', 'default']
         subprocess.Popen(
             builder_cmd,
