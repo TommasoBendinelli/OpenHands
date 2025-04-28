@@ -183,7 +183,7 @@ evaluation/commit0_bench/repos
 
 # openhands resolver
 outputs/
-
+multirun/
 # frontend
 
 # dependencies

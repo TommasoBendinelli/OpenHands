@@ -232,7 +232,6 @@ class DockerRuntime(ActionExecutionClient):
                     }
                 ],
             }
-
             if self.vscode_enabled:
                 port_mapping[f'{self._vscode_port}/tcp'] = [
                     {
@@ -283,7 +282,14 @@ class DockerRuntime(ActionExecutionClient):
             logger.debug(
                 'Mount dir is not set, will not mount the workspace directory to the container'
             )
-            volumes = None
+            # volumes = None
+
+            volumes = {
+                'vscode-server-cache': {
+                    'bind': '/root/.vscode-server',
+                    'mode': 'rw',
+                }
+            }
         self.log(
             'debug',
             f'Sandbox workspace: {self.config.workspace_mount_path_in_sandbox}',
@@ -294,7 +300,6 @@ class DockerRuntime(ActionExecutionClient):
             plugins=self.plugins,
             app_config=self.config,
         )
-
         try:
             self.container = self.docker_client.containers.run(
                 self.runtime_container_image,

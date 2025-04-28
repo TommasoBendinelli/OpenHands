@@ -5,6 +5,8 @@ eval_n_limit: 1
 eval_output_dir: # To be filled in by the script
 agent_cls: error_bench_agent
 eval_note: temp
+class_type: "data_inputation"
+instance: "wine"
 constraints: 0
 hydra:
   job:

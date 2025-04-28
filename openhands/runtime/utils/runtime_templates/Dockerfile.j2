@@ -158,6 +158,7 @@ COPY ./code/pyproject.toml ./code/poetry.lock /openhands/code/
 COPY ./code/openhands/runtime/plugins/vscode/settings.json /workspace/.vscode/settings.json
 RUN chmod -R a+rwx /workspace/.vscode/settings.json
 
+
 {{ install_dependencies() }}
 
 # ================================================================
@@ -182,7 +183,6 @@ RUN chmod a+rwx /openhands/code/openhands/__init__.py
 #  && mkdir -p /root/.vscode-server/bin/${VSCODE_COMMIT} \
 #  && curl -SL "https://update.code.visualstudio.com/commit/${VSCODE_COMMIT}/server-linux-x64/stable" \
 #  | tar -xz --strip-components=1 -C /root/.vscode-server/bin/${VSCODE_COMMIT}
-
 {{ setup_vscode_server() }}
 
 # ================================================================

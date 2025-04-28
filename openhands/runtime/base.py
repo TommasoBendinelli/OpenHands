@@ -151,7 +151,6 @@ class Runtime(FileEditRuntimeMixin):
         self._vscode_enabled = any(
             isinstance(plugin, VSCodeRequirement) for plugin in self.plugins
         )
-
         # Load mixins
         FileEditRuntimeMixin.__init__(
             self, enable_llm_editor=config.get_agent_config().enable_llm_editor
