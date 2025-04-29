@@ -1,4 +1,4 @@
-number_of_expiments: 4
+number_of_experiments: 4
 llm_config: open_router
 eval_num_workers: 1
 eval_n_limit: 1
@@ -8,6 +8,9 @@ eval_note: temp
 class_type: "data_inputation"
 instance: "wine"
 constraints: 0
+hints: 0
+solution_iterations: 0
+fold: -1 # Only used in anomaly detection so far, for the others it's -1
 hydra:
   job:
     chdir: false

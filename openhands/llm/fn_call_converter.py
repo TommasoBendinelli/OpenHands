@@ -42,6 +42,7 @@ Reminder:
 - Only call one function at a time
 - You may provide optional reasoning for your function call in natural language BEFORE the function call, but NOT after.
 - If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
+- Cat command is limited to 10 lines
 </IMPORTANT>
 """
 
@@ -470,6 +471,7 @@ def convert_fncall_messages_to_non_fncall_messages(
             raise FunctionCallConversionError(
                 f'Unexpected role {role}. Expected system, user, assistant or tool.'
             )
+
     return converted_messages
 
 

@@ -159,6 +159,17 @@ COPY ./code/openhands/runtime/plugins/vscode/settings.json /workspace/.vscode/se
 RUN chmod -R a+rwx /workspace/.vscode/settings.json
 
 
+ENV CATLINES=20
+
+# Put a small shell function in /etc/profile.d so every interactive Bash
+# session (docker exec -it … bash) automatically picks it up
+RUN printf '%s\n' \
+      'cat() {' \
+      '  local n=${CATLINES:-20}' \
+      '  head -n "$n" "$@"' \
+      '}' \
+  > /etc/profile.d/limit_cat.sh
+
 {{ install_dependencies() }}
 
 # ================================================================
