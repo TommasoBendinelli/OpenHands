@@ -26,7 +26,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 requirements.txt
-evaluation/
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -82,7 +81,6 @@ target/
 # IPython
 profile_default/
 ipython_config.py
-
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:
@@ -169,6 +167,7 @@ cython_debug/
 .cursorignore
 
 # evaluation
+evaluation/benchmarks/ucr_dataset/
 evaluation/evaluation_outputs
 evaluation/outputs
 evaluation/swe_bench/eval_workspace*
@@ -178,13 +177,24 @@ evaluation/bird/data
 evaluation/gaia/data
 evaluation/gorilla/data
 evaluation/toolqa/data
+openhands/agenthub/discoverybench/*
 evaluation/scienceagentbench/benchmark
 evaluation/commit0_bench/repos
-
+evaluation/benchmarks/bird/data/
+evaluation/benchmarks/time_series_classification_v2/
+evaluation/benchmarks/time_series_classification_v1/
+evaluation/benchmarks/forecasting/
+evaluation/benchmarks/error_bench/tasks/explorative_data_analysis/find_halfspace_intersection/test.ipynb
+evaluation/benchmarks/error_bench/tasks/explorative_data_analysis/old/*
 # openhands resolver
 outputs/
 multirun/
 # frontend
+
+*.pkl
+*.png
+# Other stuff
+git-discoverybench-allenai/
 
 # dependencies
 frontend/.pnp
