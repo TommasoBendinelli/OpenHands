@@ -1,8 +1,12 @@
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from utils import save_datasets
 
 
 # ---------------------------------------------------------------------
@@ -88,13 +92,14 @@ if __name__ == '__main__':
     train_df = pd.concat([train_df_1, train_df_2], ignore_index=True)
     print(train_df.head())
 
+    save_datasets(train_df=train_df, test_df=test_df, output_folder=output_folder)
     # Save CSVs identical to previous API
-    train_df.to_csv(output_folder / 'train.csv', index=False)
-    tmp = pd.read_csv(output_folder / 'train.csv')
-    y_test = test_df['label']
-    y_test.to_csv(output_folder / 'test_gt.csv', index=False)
-    X_test = test_df.drop(columns=['label'])
-    X_test.to_csv(output_folder / 'test.csv', index=False)
+    # train_df.to_csv(output_folder / 'train.csv', index=False)
+    # tmp = pd.read_csv(output_folder / 'train.csv')
+    # y_test = test_df['label']
+    # y_test.to_csv(output_folder / 'test_gt.csv', index=False)
+    # X_test = test_df.drop(columns=['label'])
+    # X_test.to_csv(output_folder / 'test.csv', index=False)
 
     # Quick visual sanity-check
     plt.figure(figsize=(12, 6))

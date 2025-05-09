@@ -312,9 +312,7 @@ def process_instance(
             if cfg.hints == 2:
                 instruction += 'ADDITIONAL HINT, this is the only important feature!'
 
-        instruction += 'Your goal is to achieve an accuracy as high as possible in the test set. \n'
-        if cfg.is_sklearn_banned:
-            instruction += 'You are not allowed to use sklearn'
+        instruction += 'Your goal is to achieve an accuracy as high as possible in the test set, with a method that is as simple as possible. \n'
         # else:
         #     instruction = """You are an expert providing assistance the following dataset. Given the following dataset comprising time series, your task is to identify the features that separate two classes the most.
         #     """
@@ -375,7 +373,9 @@ def process_instance(
         )
 
     if cfg.keep_going_until_succeed:
-        instruction += 'Keep trying improving your solution. Do not stop'
+        instruction += (
+            'Keep trying until you have the best possible solution in your opinion. '
+        )
 
     if cfg.warm_against_cheating:
         assert (
@@ -413,14 +413,13 @@ def process_instance(
     messages_except_the_first_one = [
         code.code for code in state.history if isinstance(code, IPythonRunCellAction)
     ]
-
     if instance['class_type'] == 'dummy_anomaly':
-        # metric = [
-        #     1
-        #     for x in state.history
-        #     if isinstance(x, CmdOutputObservation)
-        #     and x.content == 'Ok you got the error, please mark the task as done'
-        # ]
+        metric = [
+            1
+            for x in state.history
+            if isinstance(x, CmdOutputObservation)
+            and x.content == 'Ok you got the error, please mark the task as done'
+        ]
 
         # Check if any of the conditions is not respected
         constraint_set = set(contraints)
@@ -440,6 +439,7 @@ def process_instance(
             tmp = float(res.content.split('Median Absolute Error: ')[1])
         except (ValueError, IndexError):
             tmp = np.nan
+        metric = tmp
         # Compute
     elif instance['class_type'] == 'anomaly_detections':
         is_violated = np.nan
@@ -450,6 +450,7 @@ def process_instance(
             tmp = float(res.content.split('Median Absolute Error: ')[1])
         except (ValueError, IndexError):
             tmp = np.nan
+        metric = tmp
 
     elif instance['class_type'] == 'explorative_data_analysis':
         # Get the run_counter.txt entry (if it exists)
@@ -459,17 +460,14 @@ def process_instance(
         except (ValueError, IndexError):
             tmp = np.nan
         number_of_submission = tmp
-        scores = []
+        metric = np.nan
         if cfg.solution_iterations > 0:
-            is_violated = np.nan
             res = runtime.run_action(CmdRunAction(command='cat /mnt/accuracy.txt'))
-            scores = [
-                float(line.split(': ')[1])
-                for line in res.content.split('\n')
-                if line.startswith('Accuracy')
-            ]
+            # Read all the attempts
 
-        if cfg.solution_iterations == 0 or not scores:
+            res.content = res.content.split('\n')
+
+        if cfg.solution_iterations == 0 or np.isnan(metric):
             is_violated = np.nan
             runtime.run(
                 CmdRunAction(
@@ -483,14 +481,15 @@ def process_instance(
                 CmdRunAction(command='python3 /mnt/compute_metric.py')
             )
             try:
-                tmp = float(output_command.content.split(':')[1])
-                scores.append(tmp)
+                tmp = float(output_command.content.split('Accuracy: ')[1])
             except (ValueError, IndexError):
-                pass
+                tmp = np.nan
 
+            # Load the test set
+        metric = tmp
     else:
         is_violated = np.nan
-        scores = []
+        metric = np.nan
         number_of_submission = np.nan
 
     # Call the orcal
@@ -499,7 +498,7 @@ def process_instance(
     test_result = {
         'result': {
             'is_violated': is_violated,
-            'metric': scores,
+            'metric': metric,
             'number_of_submissions': number_of_submission,
         }
     }

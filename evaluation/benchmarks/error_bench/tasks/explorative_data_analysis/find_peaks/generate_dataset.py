@@ -1,8 +1,13 @@
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks_cwt, ricker
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+import matplotlib.pyplot as plt
+from utils import save_datasets
 
 
 def number_cwt_peaks(x, n):
@@ -28,9 +33,17 @@ def generate_signal(n_peaks, length=100, width=0.02):
     """
     t = np.linspace(0, 1, length)
     x = np.zeros_like(t)
+
+    if n_peaks == 1:
+        # Make the peak smaller
+        width = 0.05
+    elif n_peaks > 1:
+        # Make the peak larger
+        width = 0.005
     centers = np.linspace(0.1, 0.9, n_peaks)
     for c in centers:
-        x += np.exp(-((t - c) ** 2) / (2 * width**2))
+        x += width * np.exp(-((t - c) ** 2) / (2 * width**2))
+
     return x
 
 
@@ -44,6 +57,8 @@ def create_dataset(
 ):
     """
     Build a CSV dataset of signals labeled by their true number of peaks.
+    label 0 -> 1 peaks
+    label 1 -> >1 peaks
 
     :param max_peaks: int, highest peak-count class
     :param samples_per_class: int, how many samples in each class
@@ -54,22 +69,23 @@ def create_dataset(
     """
     data = []
     labels = []
-    for k in range(1, max_peaks + 1):
-        for _ in range(samples_per_class):
-            x = generate_signal(k, length, width)
-            data.append(x)
-            labels.append(k)
+
+    # Generate signals with 0 and >0 peaks
+    # Both classes should be represented equally
+    for _ in range(samples_per_class):
+        x = generate_signal(1, length, width)
+        data.append(x)
+        labels.append(0)
+
+        # Create number of peaks from 2 to max_peaks randomly
+        k = np.random.randint(2, max_peaks + 1)
+        x = generate_signal(k, length, width)
+        data.append(x)
+        labels.append(1)
+
     df = pd.DataFrame(np.vstack(data))
     df['label'] = labels
-    if separate_x_and_y:
-        labels = df.pop('label')
-        X = df
-        # Save test_gt.csv, test.csv
-        X.to_csv(output_folder / 'test.csv', index=False)
-        labels.to_csv(output_folder / 'test_gt.csv', index=False)
 
-    else:
-        df.to_csv(output_folder / 'train.csv', index=False)
     return df
 
 
@@ -87,13 +103,22 @@ if __name__ == '__main__':
         separate_x_and_y=True,
     )
     print(train_df.head())
+    save_datasets(train_df=train_df, test_df=test_df, output_folder=output_folder)
 
-    import matplotlib.pyplot as plt
+    # Quick visual sanity check
+    # Plot signal from both classses
 
-    # Iterate from len(df) to 0
-    for i in range(len(train_df) - 1, 1, -1):
-        plt.plot(train_df.iloc[i, :-1])
-        plt.title(f'Number of Peaks: {train_df.iloc[i, -1]}')
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    class0_signal = train_df[train_df['label'] == 0].iloc[0, :-1]
+    plt.plot(class0_signal)
+    plt.title('Signal 1 peaks (label 0)')
 
-    # # Save the plot
-    plt.savefig('sample_signals.png')
+    plt.subplot(1, 2, 2)
+    class1_signal = train_df[train_df['label'] == 1].iloc[0, :-1]
+    plt.plot(class1_signal)
+    plt.title('Signal >1 peaks (label 1)')
+
+    plt.tight_layout()
+    plt.show()
+    plt.savefig(output_folder / 'dataset_sanity_check.png')

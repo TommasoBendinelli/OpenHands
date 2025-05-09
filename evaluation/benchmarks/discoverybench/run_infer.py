@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import shutil
 from pathlib import Path
 
 import git
@@ -17,7 +16,6 @@ from evaluation.utils.shared import (
     EvalMetadata,
     EvalOutput,
     codeact_user_response,
-    compatibility_for_eval_history_pairs,
     get_default_sandbox_config_for_eval,
     make_metadata,
     prepare_dataset,
@@ -35,8 +33,10 @@ from openhands.core.logger import openhands_logger as logger
 from openhands.core.main import create_runtime, run_controller
 from openhands.events.action import AgentFinishAction, CmdRunAction, MessageAction
 from openhands.events.observation import CmdOutputObservation
+from openhands.events.serialization.event import event_to_dict
 from openhands.runtime.base import Runtime
 from openhands.utils.async_utils import call_async_from_sync
+from openhands.utils.benchmark_additions import kill_instance, safe_append
 
 EVALUATION_LLM = 'gpt-4-1106-preview'
 
@@ -58,7 +58,8 @@ AGENT_CLS_TO_FAKE_USER_RESPONSE_FN = {
 }
 
 AGENT_CLS_TO_INST_SUFFIX = {
-    'CodeActAgent': 'When you think you have fixed the issue through code changes, please finish the interaction using the "finish" tool.\n'
+    'CodeActAgent': 'When you think you have fixed the issue through code changes, please finish the interaction using the "finish" tool.\n',
+    'ErrorBench': 'When you think you have fixed the issue through code changes, please finish the interaction using the "finish" tool.\n',
 }
 
 
@@ -67,6 +68,8 @@ def get_config(
 ) -> AppConfig:
     sandbox_config = get_default_sandbox_config_for_eval()
     sandbox_config.base_container_image = 'python:3.12-bookworm'
+    sandbox_config.runtime_extra_deps = '/openhands/poetry/openhands-ai-5O4_aCHf-py3.12/bin/python  -m pip install sktime[all_extras] numpy pandas scikit-learn && python3 -m pip install sktime[all_extras] scikit-learn numpy pandas'
+    metadata.agent_class = 'ErrorBench'
     config = AppConfig(
         default_agent=metadata.agent_class,
         run_as_openhands=False,
@@ -308,7 +311,7 @@ def process_instance(
     # for compatibility with the existing output format, we can remake the pairs here
     # remove when it becomes unnecessary
 
-    histories = compatibility_for_eval_history_pairs(state.history)
+    # histories = compatibility_for_eval_history_pairs(state.history)
 
     # DiscoveryBench Evaluation
     eval_rec = run_eval_gold_vs_gen_NL_hypo_workflow(
@@ -321,7 +324,7 @@ def process_instance(
         llm_used=EVALUATION_LLM,
         dataset_type='real',
     )
-
+    histories = [event_to_dict(x) for x in state.history]
     test_result['eval_rec'] = eval_rec
     output = EvalOutput(
         instance_id=str(instance.instance_id),
@@ -331,6 +334,7 @@ def process_instance(
         metrics=metrics,
         error=state.last_error if state and state.last_error else None,
         test_result=test_result,
+        sid=runtime.sid,
     )
 
     return output
@@ -478,7 +482,7 @@ if __name__ == '__main__':
     metadata_dir = Path(args.eval_output_dir) / str(date)
     metadata_dir.mkdir(parents=True, exist_ok=True)
     args.eval_output_dir = str(metadata_dir)
-    args.max_iterations = 4
+    args.max_iterations = 1
     metadata = make_metadata(
         llm_config,
         'discoverybench-python',
@@ -487,14 +491,32 @@ if __name__ == '__main__':
         args.eval_note,
         args.eval_output_dir,
     )
+
     output_file = os.path.join(metadata.eval_output_dir, 'output.jsonl')
-    instances = prepare_dataset(dataset, output_file, args.eval_n_limit)
+    instances = prepare_dataset(dataset, output_file, 5)
     run_evaluation(
         instances,
         metadata,
         output_file,
-        args.eval_num_workers,
+        1,
         process_instance,
     )
 
-    shutil.copyfile(output_file, Path('trajectory-visualizer/public') / 'output.jsonl')
+    # Add the output file to the trajectory visualiser folder
+    print('Implement this')
+    target_path = Path('trajectory-visualizer/public') / 'output.jsonl'
+    if not target_path.exists():
+        # Create an empty file if it doesn't exist
+        target_path.touch()
+
+    # Open the output file file
+    with open(output_file, 'r') as f:
+        # Read the content of the file
+        content = f.read()
+
+    safe_append(path=target_path, text=content)
+
+    # Open the output file and read the sid
+    kill_instance(output_file)
+
+    # shutil.copyfile(output_file, Path('trajectory-visualizer/public') / 'output.jsonl')

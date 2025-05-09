@@ -1,8 +1,13 @@
+# Add to the system path evaluation/benchmarks/error_bench/tasks/explorative_data_analysis
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.signal import welch
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from utils import save_datasets
 
 
 # ---------------------------------------------------------------------
@@ -20,8 +25,7 @@ def band_power(signal, fs, band):
 def generate_synthetic_freq_band_signal(
     n_points: int,
     fs: int = 100,
-    target_band_hz: tuple[int, int] = (5, 10),
-    band_present: bool = True,
+    target_band_hz: tuple[int, int] = (0, 4),
     noise_std: float = 0.5,
 ):
     """
@@ -33,16 +37,15 @@ def generate_synthetic_freq_band_signal(
     t = np.arange(n_points) / fs
 
     # Choose carrier frequencies
-    if band_present:
-        # Pick one random freq inside the band
-        freq = np.random.uniform(*target_band_hz)
-    else:
-        # Pick a random freq outside the band (0–Nyquist)
-        nyquist = fs / 2
-        valid = False
-        while not valid:
-            freq = np.random.uniform(0.5, nyquist - 0.5)
-            valid = freq < target_band_hz[0] or freq > target_band_hz[1]
+    # Pick the frequency in the middle of the band
+    freq = np.random.uniform(target_band_hz[0], target_band_hz[1])
+    # else:
+    #     # Pick a random freq outside the band (0–Nyquist)
+    #     nyquist = fs / 2
+    #     valid = False
+    #     while not valid:
+    #         freq = np.random.uniform(0.5, nyquist - 0.5)
+    #         valid = freq < target_band_hz[0] or freq > target_band_hz[1]
 
     # Build the sine plus noise
     signal = np.sin(2 * np.pi * freq * t)
@@ -65,11 +68,14 @@ def generate_dataset(
     data, labels = [], []
     for _ in range(num_samples):
         present = bool(np.random.choice([0, 1]))
+        if present:
+            target_band_hz = (0, 2)
+        else:
+            target_band_hz = (20, 50)
         sig = generate_synthetic_freq_band_signal(
             n_points,
             fs=fs,
             target_band_hz=target_band_hz,
-            band_present=present,
             noise_std=noise_std,
         )
         data.append(sig)
@@ -87,39 +93,34 @@ if __name__ == '__main__':
     output_folder = Path(__file__).resolve().parent
 
     # Pick two training distributions to increase variety
-    train_df_1 = generate_dataset(noise_std=0.3)
-    train_df_2 = generate_dataset(noise_std=1.0)
+    train_df_1 = generate_dataset(noise_std=0.2)
+    train_df_2 = generate_dataset(noise_std=0.1)
 
-    test_df = generate_dataset(noise_std=0.8)
+    test_df = generate_dataset(noise_std=0.5)
     train_df = pd.concat([train_df_1, train_df_2], ignore_index=True)
-
     print(train_df.head())
 
+    save_datasets(train_df=train_df, test_df=test_df, output_folder=output_folder)
     # Save CSVs
-    train_df.to_csv(output_folder / 'train.csv', index=False)
-    y_test = test_df['label']
-    y_test.to_csv(output_folder / 'test_gt.csv', index=False)
-    X_test = test_df.drop(columns=['label'])
-    X_test.to_csv(output_folder / 'test.csv', index=False)
-
-    # Quick sanity-check: band power of first two examples
-    fs = 100
-    band = (5, 10)
-    for i in range(2):
-        pwr = band_power(train_df.iloc[i, :-1].values, fs, band)
-        print(f"Sample {i} – label={train_df.loc[i,'label']} – band power={pwr:.4f}")
-
+    train_df_labels = train_df['label'].astype(int)
+    # train_df.to_csv(output_folder / 'train_labels.csv', index=False)
+    # train_df = train_df.drop(columns=['label'])
+    # train_df.to_csv(output_folder / 'train.csv', index=False)
+    # y_test = test_df['label']
+    # y_test.to_csv(output_folder / 'test_gt.csv', index=False)
+    # X_test = test_df.drop(columns=['label'])
+    # X_test.to_csv(output_folder / 'test.csv', index=False)
     # Nice-to-have plots (optional)
     import matplotlib.pyplot as plt
 
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
-    sig_pos = train_df[train_df['label'] == 1].iloc[0, :-1]
+    sig_pos = train_df[train_df_labels == 1].iloc[0, :-1]
     plt.plot(sig_pos)
     plt.title('Signal WITH target band (label 1)')
 
     plt.subplot(1, 2, 2)
-    sig_neg = train_df[train_df['label'] == 0].iloc[0, :-1]
+    sig_neg = train_df[train_df_labels == 0].iloc[0, :-1]
     plt.plot(sig_neg)
     plt.title('Signal WITHOUT target band (label 0)')
 
