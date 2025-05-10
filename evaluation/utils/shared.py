@@ -54,7 +54,8 @@ class EvalMetadata(BaseModel):
     data_split: str | None = None
     details: dict[str, Any] | None = None
     condenser_config: CondenserConfig | None = None
-
+    max_budget_per_task: int | float | None = None
+    task_name: str | None = None
 
 class EvalOutput(BaseModel):
     # NOTE: User-specified
@@ -76,6 +77,7 @@ class EvalOutput(BaseModel):
 
     # Optionally save the input test instance
     instance: dict[str, Any] | None = None
+    sid: str | None = None
 
 
 class EvalException(Exception):
@@ -166,12 +168,15 @@ def errorbench_user_response(
         else ''
     )
     msg = (
-        'Please continue working on the task. The user is waiting for your response.\n'
-        'If you think you have enough information and ready to submit your answer, please first send your answer to user through message and then finish the interaction.\n'
-        f'{encaps_str}'
-        'IMPORTANT: YOU SHOULD NEVER ASK FOR HUMAN HELP.\n'
+        'Please continue working on the task and submit a new solution to the user via compute_metrics.py. Your result is not good enough yet.\n'
     )
     if state.history:
+        from openhands.events.observation import CmdOutputObservation
+        import re
+        msg_content = [x.content for x in state.history if (isinstance(x, CmdOutputObservation) and "Congratulations! You have reached the accuracy threshold of 1.0." in x.content )]
+        if len(msg_content) > 0:
+            return '/exit'
+
         # check if the last action has an answer, if so, early exit
         if try_parse is not None:
             last_action = next(
@@ -192,12 +197,12 @@ def errorbench_user_response(
             for event in state.history
             if isinstance(event, MessageAction) and event.source == 'user'
         ]
-        if len(user_msgs) >= 2:
-            # let the agent know that it can give up when it has tried 3 times
-            return (
-                msg
-                + 'If you want to give up, use the "finish" tool to finish the interaction.\n'
-            )
+        # if len(user_msgs) >= 2:
+        #     # let the agent know that it can give up when it has tried 3 times
+        #     return (
+        #         msg
+        #         + 'If you want to give up, use the "finish" tool to finish the interaction.\n'
+        #     )
     return msg
 
 
@@ -213,13 +218,14 @@ def make_metadata(
     llm_config: LLMConfig,
     dataset_name: str,
     agent_class: str,
-    max_iterations: int,
+    max_budget_per_task: int,
     eval_note: str | None,
     eval_output_dir: str,
     data_split: str | None = None,
     details: dict[str, Any] | None = None,
     agent_config: AgentConfig | None = None,
     condenser_config: CondenserConfig | None = None,
+    task_name: str | None = None,
 ) -> EvalMetadata:
     eval_note = f'_N_{eval_note}' if eval_note else ''
 
@@ -230,23 +236,24 @@ def make_metadata(
         parents=True, exist_ok=True
     )
     logger.info(f'Using evaluation output directory: {eval_output_path}')
-
     metadata = EvalMetadata(
         agent_class=agent_class,
         llm_config=llm_config,
         agent_config=agent_config,
-        max_iterations=max_iterations,
+        max_iterations=100000,  # Arbitrary large number (we are using max_budget_per_task)
+        max_budget_per_task=max_budget_per_task,
         eval_output_dir=eval_output_path,
         start_time=time.strftime('%Y-%m-%d %H:%M:%S'),
         git_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'])
         .decode('utf-8')
         .strip(),
         dataset=dataset_name,
-        data_split=data_split,
+        data_split=str(data_split),
         details=details,
-        condenser_config=condenser_config
-        if condenser_config
-        else NoOpCondenserConfig(),
+        condenser_config=(
+            condenser_config if condenser_config else NoOpCondenserConfig()
+        ),
+        task_name=task_name,
     )
     metadata_json = metadata.model_dump_json()
     logger.info(f'Metadata: {metadata_json}')
@@ -277,7 +284,6 @@ def prepare_dataset(
         logger.warning(
             f'\nOutput file {output_file} already exists. Loaded {len(finished_ids)} finished instances.'
         )
-
     if eval_ids:
         eval_ids_converted = [dataset[id_column].dtype.type(id) for id in eval_ids]
         dataset = dataset[dataset[id_column].isin(eval_ids_converted)]
@@ -305,7 +311,7 @@ def prepare_dataset(
         # dataset = dataset.sample(
         #     min(eval_n_limit, len(dataset)), random_state=42, replace=False
         # )
-        dataset = dataset.iloc[3:]
+        dataset = dataset.iloc[:1]
         logger.info(
             f'Randomly sampling {eval_n_limit} unique instances with random seed 42.'
         )
@@ -319,6 +325,9 @@ def prepare_dataset(
         f'Finished instances: {len(finished_ids)}, Remaining instances: {len(new_dataset)}'
     )
 
+    import uuid
+
+    new_dataset[0].instance_id = uuid.uuid4().hex
     return pd.DataFrame(new_dataset)
 
 

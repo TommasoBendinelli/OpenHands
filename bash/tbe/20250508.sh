@@ -1,1 +1,4 @@
 python   evaluation/benchmarks/error_bench/run_infer.py   number_of_experiments=1   eval_n_limit=1   class_type=explorative_data_analysis   instance=predict_ts_stationarity,find_peaks,frequency_band,set_points    constraints=0   hints=0   llm_config="gemini"   solution_iterations=10   cheating_attempt=False   warm_against_cheating=False   max_budget_per_task=0.05   prompt_variation=0,1,2,3,4,5,6,7,8,9  seed=20  keep_going_until_succeed=True native_tool_calling=False -m
+
+
+python   evaluation/benchmarks/error_bench/run_infer.py   number_of_experiments=1   eval_n_limit=1   class_type=explorative_data_analysis   instance=predict_ts_stationarity,find_peaks,frequency_band,set_points    constraints=0   hints=0   llm_config="open_router_claude"   solution_iterations=10   cheating_attempt=False   warm_against_cheating=False   max_budget_per_task=1   prompt_variation=0,2 seed=20  keep_going_until_succeed=True native_tool_calling=False -m

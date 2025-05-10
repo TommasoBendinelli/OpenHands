@@ -164,7 +164,7 @@ def get_folders_in_range(
         after = datetime.strptime('2025-05-04_00-00-32', '%Y-%m-%d_%H-%M-%S')
 
     if before is None:
-        before = datetime.today()
+        before = datetime.strptime('2030-05-04_00-00-32', '%Y-%m-%d_%H-%M-%S')
 
     for date_folder in base_dir.iterdir():
         if not date_folder.is_dir():
@@ -237,12 +237,11 @@ def main():
         metric = outputs[0]['test_result']['result']['metric']
 
         if 'sklearn' in messages:
-            continue
             is_sklearn = True
         else:
             is_sklearn = False
 
-        solution = solutions[cfg['instance']]
+        # solution = solutions[cfg['instance']]
 
         instance = cfg['instance']
         contraints = cfg['constraints']
@@ -333,7 +332,14 @@ def main():
         }
         df = pd.DataFrame.from_dict(current_dict)
 
+        if outputs[0]['error'] and "RuntimeError: Agent reached maximum budget" in outputs[0]['error']:
+            outputs[0]['error'] = None 
+            use_max_budget = True
+        else:
+            use_max_budget = False
+
         df['error'] = outputs[0]['error']
+        df['use_max_budget'] = use_max_budget
         # Add contraints as column
         df['constraints'] = contraints
         # Add llm_config as column
@@ -353,7 +359,9 @@ def main():
 
         # Complete failure"]
         # df['invalid_or_no_submission'] = df["metric"].isna()
-        df['perfect_accuracy'] = df['metric'] == 1
+        df['perfect_accuracy'] = df['metric'].apply(
+            lambda x: 1 if len(x) > 0 and max(x) == 1 else 0
+        )
         df['number_of_submissions'] = number_of_submissions
         df['final_accumulated_cost'] = accumulated_cost
 
@@ -400,7 +408,13 @@ def main():
             df['methods'] = gemini_response_question_3
         entries_df.append(df)
 
-    results_all = pd.concat(entries_df, ignore_index=True, axis=0)
+    results_all = pd.concat(entries_df, ignore_index=True, axis=0).iloc[-40:]
+    breakpoint()
+    # Group by task
+    for instance, group_df in results_all.groupby('instance'):
+        # is_sklearn used?
+        is_sklearn = group_df['is_skelarn'].unique()[0]
+        
     results_all['best_metric'] = results_all['metric'].apply(
         lambda x: max(x) if len(x) > 0 else np.nan
     )
@@ -443,7 +457,6 @@ def main():
         )
         .reset_index()
     )
-
     print(results_005_all)
 
     tasks = sorted(results_all['instance'].unique())

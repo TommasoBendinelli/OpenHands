@@ -66,7 +66,7 @@ def format_task_dict(example, use_knowledge):
 def get_config(metadata: EvalMetadata, cfg: OmegaConf) -> AppConfig:
     sandbox_config = get_default_sandbox_config_for_eval()
     sandbox_config.base_container_image = 'python:3.12-bookworm'
-    sandbox_config.runtime_extra_deps = '/openhands/poetry/openhands-ai-5O4_aCHf-py3.12/bin/python  -m pip install sktime[all_extras] numpy pandas scikit-learn && python3 -m pip install sktime[all_extras] scikit-learn numpy pandas'
+    sandbox_config.runtime_extra_deps = '/openhands/poetry/openhands-ai-5O4_aCHf-py3.12/bin/python  -m pip install numpy matplotlib pandas && python3 -m pip install numpy pandas matplotlib'
     metadata.agent_class = 'ErrorBench'
 
     config = AppConfig(
@@ -108,7 +108,7 @@ def initialize_runtime(
     #     json.dump(metadata, f)
 
     base_path = Path(
-        f"evaluation/benchmarks/error_bench/tasks/{instance["class_type"] }/{instance['example']}/"
+        f"evaluation/benchmarks/error_bench/tasks/{instance['class_type'] }/{instance['example']}/"
     )
     if instance['fold'] != -1:
         base_path = base_path / f"fold_{instance['fold']}"
@@ -278,8 +278,7 @@ def process_instance(
             to_be_added += entry
 
         instruction = f"""You are an expert providing assistance about a tabular data task. There is an issue with one of the entries and you need to identify it based on statistical and machine learning analysis. Once you have identified the
-        issue, please call python3 test.py row_idx, where row_idx is the index of the row you think is wrong. If you get as response "Ok you got the error, please mark the task as done", then you are correct. If you get "No error", then you are wrong and you need
-        to try again until you get the correct answer.
+        issue, please call python3 test.py row_idx, where row_idx is the index of the row you think is wrong. If you get as response "Ok you got the error, please mark the task as done", then you are correct. If you get "No error", then you are wrong and you need to try again until you get the correct answer.
         The path of the dataset is /workspace/dataset.csv. You should open it with pandas
 
         ADDITIONAL CONSTRAINTS:
@@ -292,9 +291,11 @@ def process_instance(
             'r',
         ) as f:
             metadata_json = json.load(f)
-        instruction = metadata_json[f"prompt_{cfg['prompt_variation']}"]
+        instruction = metadata_json[f"prompt_{cfg['prompt_variation']}"] + ' \n'
 
-        instruction += 'Save your solution in /workspace/solution.csv based on /workspace/test.csv. Your solution must be a vector of classification labels for the test data. \n'
+        instruction += 'Your prediction should be based on a single explainable and deterministic hand-crafted feature that you have computed on the data, that paired with a decision classifier should be enough to solve the task.'
+        instruction += 'The time-series are located at /workspace/train.csv and /workspace/test.csv, the labels are located at /workspace/train_labels.csv. The test set labels are not available. \n'
+        instruction += 'Save your solution in engineered feature for the training set in /workspace/train_engineered_feature.csv and for the test set in /workspace/test_engineered_feature.csv. \n'
 
         if cfg.hints > 0:
             # Open the specific metadata file
@@ -314,7 +315,12 @@ def process_instance(
 
         instruction += 'Your goal is to achieve an accuracy as high as possible in the test set. \n'
         if cfg.is_sklearn_banned:
-            instruction += 'You are not allowed to use sklearn'
+            if cfg.is_plotting_enabled:
+                instruction += 'You can use only numpy, pandas and matplotlib.  NO OTHER LIBRARY IS ALLOWED. \n'
+            else:
+                instruction += (
+                    'You can use only numpy and pandas. NO OTHER LIBRARY IS ALLOWED. \n'
+                )
         # else:
         #     instruction = """You are an expert providing assistance the following dataset. Given the following dataset comprising time series, your task is to identify the features that separate two classes the most.
         #     """
@@ -343,8 +349,8 @@ def process_instance(
             'You can find the dataset at the to_check path: /workspace/to_check.csv\n'
         )
 
-    instruction += 'Please encapsulate your motivation of your approach within <motivation> and </motivation>. \n'
-    instruction += 'You can use /mnt/check_submission.py to check whether your submission will be accepted and evaluated or not. \n'
+    # instruction += 'Please encapsulate your motivation of your approach within <motivation> and </motivation>. \n'
+    instruction += 'You can run /mnt/check_submission.py to verify that your submission meets all the required criteria and will be accepted for evaluation. \n'
     if cfg.constraints > 0:
         instruction += 'You must follow the following constraints:\n'
         dummy_constrains = [
@@ -359,9 +365,9 @@ def process_instance(
 
     if cfg.solution_iterations > 0:
         if cfg.show_solution_iterations:
-            instruction += f'You can get a feedback on your solution by calling python3 /mnt/compute_metric.py. You can call it at most {cfg.solution_iterations} times, so use them wisely. \n'
+            instruction += f'To submit your hand-crafted summary feature you need to call python3 /mnt/compute_metric.py. If your solution is not good enough, you will get back a score. You can then improve your solution and submit it again. You have {cfg.solution_iterations} attempts to improve your solution. If your solution is good enough the task will be considered completed.\n'
         else:
-            instruction += 'You can get a feedback on your solution by calling python3 /mnt/compute_metric.py \n'
+            instruction += 'To submit your hand-crafted summary feature you need to call python3 /mnt/compute_metric.py.  If your solution is not good enough, you will get back a score. You can then improve your solution and submit it again. If your solution is good enough the episode will end. You have only a limited number of attempts to improve your solution.\n'
     else:
         instruction += 'You will not receive any feedback on your solution on the test set, so make sure you are confident about your solution before submitting it. \n'
 
@@ -375,7 +381,9 @@ def process_instance(
         )
 
     if cfg.keep_going_until_succeed:
-        instruction += 'Keep trying improving your solution. Do not stop'
+        instruction += 'Keep trying improving your solution. Do not stop. \n'
+    if cfg.show_solution_iterations:
+        instruction += f'You have {cfg.max_iterations} max interaction with the data to solve the task. \n'
 
     if cfg.warm_against_cheating:
         assert (
@@ -383,15 +391,17 @@ def process_instance(
         ), 'This option is only available when cheating is enabled'
         instruction += "You can't look at y_test.csv or any other file that contains the y ground truth. But you can look at test.csv.\n"
 
-    if cfg.enable_browsing_for_pictures:
-        instruction += 'If you want to plot something, you need to do the following: Save the plot in a file and then open them with the browser. Do not plot directly with Python (i.e., avoid plt.plot)\n'
-    else:
-        instruction += "You can't plot anything or use any plotting library.\n"
+    #     instruction += "You can't plot anything or use any plotting library.\n"
+    instruction += 'Whenever you are receiving a plot, please provide a description of what you see in the plot. The format should be encapsulated between <plot> </plot> and it should be be as detailed as possible. Details should include for instance the points or bars and where is located the legend. Provide me the colorcode of each element in the plot. THIS IS REALLY IMPORTANT. \n'
+    instruction += 'Plot as soon and as much as possible. \n'
+
     if cfg.sid:
         sid = cfg.sid
     else:
         sid = None
 
+    # Overwrite max_interactions
+    config.max_iterations = cfg.max_iterations
     runtime = create_runtime(config, sid=sid)
 
     call_async_from_sync(runtime.connect)
@@ -513,7 +523,24 @@ def process_instance(
     # history is now available as a stream of events, rather than list of pairs of (Action, Observation)
     # for compatibility with the existing output format, we can remake the pairs here
 
+    for x in state.history:
+        if 'content' in x.__dict__:
+            text = x.content
+            # replace base64 images with a placeholder
+            splitted = text.split('\n')
+            for i, line in enumerate(splitted):
+                if '![image](data:image/png;base64,' in line:
+                    # breakpoint()
+                    # with open(current / f'{i}.png', 'wb') as f:
+                    #     f.write(png.encode('utf-8'))
+
+                    splitted[i] = (
+                        '![image](data:image/png;base64, ...) already displayed to user'
+                    )
+            text = '\n'.join(splitted)
+            x.content = text
     histories = [event_to_dict(x) for x in state.history]
+
     # Save the output
     output = EvalOutput(
         instance_id=str(instance.instance_id),
@@ -569,7 +596,7 @@ def main(cfg):
         raise ValueError(f'Could not find LLM config: --llm_config {args.llm_config}')
 
     eval_output_dir = Path(
-        f'evaluation/evaluation_outputs/outputs/{cfg.timestamp.split('_')[0]}'
+        f"evaluation/evaluation_outputs/outputs/{cfg.timestamp.split('_')[0]}"
     )
     metadata_dir = eval_output_dir / get_folder_path_name(cfg)
     metadata_dir.mkdir(parents=True, exist_ok=True)
@@ -622,7 +649,7 @@ def main(cfg):
         content = f.read()
 
     safe_append(path=target_path, text=content)
-
+    breakpoint()
     # Open the output file and read the sid
     kill_instance(output_file)
 

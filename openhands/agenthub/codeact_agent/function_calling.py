@@ -82,7 +82,6 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
             # ================================================
             # CmdRunTool (Bash)
             # ================================================
-
             if tool_call.function.name == create_cmd_run_tool()['function']['name']:
                 if 'command' not in arguments:
                     raise FunctionCallValidationError(
@@ -100,6 +99,16 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     raise FunctionCallValidationError(
                         f'Missing required argument "code" in tool call {tool_call.function.name}'
                     )
+       
+                # Check if sklearn is in the code
+                if 'import sklearn' in arguments['code']:
+                    # Then inject a raise Exception at the beginning of the code"
+                    arguments['code'] = "raise Exception('sklearn is disabled!')\n" 
+
+                if "from sklearn" in arguments['code']:
+                    # Then inject a raise Exception at the beginning of the code"
+                    arguments['code'] = "raise Exception('sklearn is disabled!')\n"
+
                 action = IPythonRunCellAction(code=arguments['code'])
             elif tool_call.function.name == 'delegate_to_browsing_agent':
                 action = AgentDelegateAction(

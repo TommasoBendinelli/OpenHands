@@ -790,7 +790,7 @@ class AgentController:
                 'iteration', self.state.iteration, self.state.max_iterations
             )
         if self.max_budget_per_task is not None:
-            current_cost = self.state.metrics.accumulated_cost
+            current_cost = self.agent.llm.metrics.accumulated_cost # self.state.metrics.accumulated_cost
             if current_cost > self.max_budget_per_task:
                 stop_step = await self._handle_traffic_control(
                     'budget', current_cost, self.max_budget_per_task

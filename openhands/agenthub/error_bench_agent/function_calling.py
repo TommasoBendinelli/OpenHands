@@ -72,6 +72,9 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
         for i, tool_call in enumerate(assistant_msg.tool_calls):
             action: Action
             logger.debug(f'Tool call in function_calling.py: {tool_call}')
+
+            
+
             try:
                 arguments = json.loads(tool_call.function.arguments)
             except json.decoder.JSONDecodeError as e:
@@ -91,7 +94,6 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                 # convert is_input to boolean
                 is_input = arguments.get('is_input', 'false') == 'true'
                 action = CmdRunAction(command=arguments['command'], is_input=is_input)
-
             # ================================================
             # IPythonTool (Jupyter)
             # ================================================

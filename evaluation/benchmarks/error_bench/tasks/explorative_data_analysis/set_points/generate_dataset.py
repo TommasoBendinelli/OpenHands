@@ -101,18 +101,53 @@ if __name__ == '__main__':
     # X_test = test_df.drop(columns=['label'])
     # X_test.to_csv(output_folder / 'test.csv', index=False)
 
-    # Quick visual sanity-check
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    sig0 = train_df[train_df['label'] == 0].iloc[0, :-1]
-    plt.plot(sig0)
-    plt.title('Class 0 (≤1 set-point)')
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), dpi=1000)
 
-    plt.subplot(1, 2, 2)
+    # Plot for Class 0
+    sig0 = train_df[train_df['label'] == 0].iloc[0, :-1]
+    ax1.plot(sig0)
+    ax1.set_xticks([])
+    ax1.set_yticks([])
+    ax1.set_xlabel('')
+    ax1.set_ylabel('')
+    for spine in ax1.spines.values():
+        spine.set_visible(False)
+
+    # Plot for Class 1
     sig1 = train_df[train_df['label'] == 1].iloc[0, :-1]
-    plt.plot(sig1)
-    plt.title('Class 1 (≥2 set-points)')
+    ax2.plot(sig1)
+    ax2.set_xticks([])
+    ax2.set_yticks([])
+    ax2.set_xlabel('')
+    ax2.set_ylabel('')
+    for spine in ax2.spines.values():
+        spine.set_visible(False)
 
     plt.tight_layout()
     plt.show()
-    plt.savefig(output_folder / 'setpoint_examples.png')
+    plt.savefig("setpoint_signal.png", dpi=1000, bbox_inches='tight')
+
+    # ---- Plot and save Class 0 ----
+    sig0 = train_df[train_df['label'] == 0].iloc[0, :-1]
+
+    fig, ax = plt.subplots(figsize=(6, 4), dpi=1000)
+    ax.plot(sig0)
+    ax.axis('off')  # Remove ticks, labels, borders
+    plt.tight_layout()
+    plt.savefig('class_0.png', bbox_inches='tight', pad_inches=0)
+    plt.close()  # Close the figure to free memory
+
+    # ---- Plot and save Class 1 ----
+    sig1 = train_df[train_df['label'] == 1].iloc[0, :-1]
+
+    fig, ax = plt.subplots(figsize=(6, 4), dpi=1000)
+    ax.plot(sig1)
+    ax.axis('off')
+    plt.tight_layout()
+    plt.savefig('class_1.png', bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+    # # Save two separte figures for each class
+    # plt.figure(figsize=(12, 6), dpi=1000)
+    # plt.plot(sig0)
+    # plt.

@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from typing import Callable, Protocol
 
+from omegaconf import DictConfig
+
 import openhands.agenthub  # noqa F401 (we import this to get the agents registered)
 from openhands.controller.agent import Agent
 from openhands.controller.replay import ReplayManager
@@ -55,6 +57,7 @@ async def run_controller(
     fake_user_response_fn: FakeUserResponseFunc | None = None,
     headless_mode: bool = True,
     memory: Memory | None = None,
+    cfg: DictConfig | None = None,
 ) -> State | None:
     """Main coroutine to run the agent controller with task input flexibility.
 
@@ -95,7 +98,7 @@ async def run_controller(
     sid = sid or generate_sid(config)
 
     if agent is None:
-        agent = create_agent(config)
+        agent = create_agent(config, cfg=cfg)
         mcp_tools = await fetch_mcp_tools_from_config(config.mcp)
         agent.set_mcp_tools(mcp_tools)
 
@@ -149,7 +152,7 @@ async def run_controller(
         f'Agent Controller Initialized: Running agent {agent.name}, model '
         f'{agent.llm.config.model}, with actions: {initial_user_action}'
     )
-
+    
     # start event is a MessageAction with the task, either resumed or new
     if initial_state is not None and initial_state.last_error:
         # we're resuming the previous session
@@ -179,6 +182,8 @@ async def run_controller(
                 event_stream.add_event(action, EventSource.USER)
 
     event_stream.subscribe(EventStreamSubscriber.MAIN, on_event, sid)
+
+    # event_stream.subscribe(EventStreamSubscriber.CUSTOM, on_event, session_id)
 
     end_states = [
         AgentState.FINISHED,

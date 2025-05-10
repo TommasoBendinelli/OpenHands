@@ -221,6 +221,59 @@ Do NOT assume the environment is the same as in the example above.
 --------------------- NEW TASK DESCRIPTION ---------------------
 """.lstrip()
 
+IN_CONTEXT_LEARNING_EXAMPLE_PREFIX = """
+    USER: Using the Seaborn “tips” dataset, calculate the average tip percentage (tip / total_bill × 100) for each day of the week and save the table to /workspace/avg_tip_pct.csv.
+
+    ASSISTANT: I’ll do everything in one IPython cell:
+
+    <function=execute_ipython_cell>
+    <parameter=code>
+    # Load data, compute average tip %, and save as CSV
+    # 1) Make sure seaborn is installed
+    try:
+        import seaborn as sns
+    except ModuleNotFoundError:
+        %pip install seaborn
+
+    import pandas as pd
+
+    # 2) Load the dataset
+    tips = sns.load_dataset("tips")
+
+    # 3) Create tip-percentage column
+    tips["tip_pct"] = tips["tip"] / tips["total_bill"] * 100
+
+    # 4) Compute average tip % by day
+    avg_pct = (
+        tips.groupby("day")["tip_pct"]
+        .mean()
+        .round(2)
+        .sort_values(ascending=False)
+    )
+
+    print("Average tip percentage by day (highest to lowest):")
+    print(avg_pct)
+
+    # 5) Save to CSV
+    avg_pct.to_csv("/workspace/avg_tip_pct.csv", header=["avg_tip_pct"])
+    print("\nCSV saved to /workspace/avg_tip_pct.csv ✔️")
+    </parameter>
+    </function>
+
+    USER: EXECUTION RESULT of [execute_ipython_cell]:
+    Average tip percentage by day (highest to lowest):
+    Sun    17.18
+    Sat    16.92
+    Thur   16.71
+    Fri    16.61
+    Name: tip_pct, dtype: float64
+
+    CSV saved to /workspace/avg_tip_pct.csv ✔️
+
+    ASSISTANT:
+    Done! The printed table shows the average tip percentages, and the CSV file is ready at **/workspace/avg_tip_pct.csv**. Let me know if you’d like any further tweaks.
+"""
+
 IN_CONTEXT_LEARNING_EXAMPLE_SUFFIX = """
 --------------------- END OF NEW TASK DESCRIPTION ---------------------
 
@@ -358,20 +411,20 @@ def convert_fncall_messages_to_non_fncall_messages(
                         )
                         for tool in tools
                     )
-                    and any(
-                        (
-                            tool['type'] == 'function'
-                            and tool['function']['name'] == 'str_replace_editor'
-                            and 'path' in tool['function']['parameters']['properties']
-                            and 'file_text'
-                            in tool['function']['parameters']['properties']
-                            and 'old_str'
-                            in tool['function']['parameters']['properties']
-                            and 'new_str'
-                            in tool['function']['parameters']['properties']
-                        )
-                        for tool in tools
-                    )
+                    # and any(
+                    #     (
+                    #         tool['type'] == 'function'
+                    #         and tool['function']['name'] == 'execute_ipython_cell'
+                    #         and 'path' in tool['function']['parameters']['properties']
+                    #         and 'file_text'
+                    #         in tool['function']['parameters']['properties']
+                    #         and 'old_str'
+                    #         in tool['function']['parameters']['properties']
+                    #         and 'new_str'
+                    #         in tool['function']['parameters']['properties']
+                    #     )
+                    #     for tool in tools
+                    # )
                 ):
                     raise FunctionCallConversionError(
                         'The currently provided tool set are NOT compatible with the in-context learning example for FnCall to Non-FnCall conversion. '
@@ -646,6 +699,7 @@ def convert_non_fncall_messages_to_fncall_messages(
                         and content[0].get('type') == 'text'
                     )
                 ):
+                    breakpoint()
                     raise FunctionCallConversionError(
                         f'Expected str or list with one text item when tool result is present in the message. Content: {content}'
                     )

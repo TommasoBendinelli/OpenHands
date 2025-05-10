@@ -82,8 +82,13 @@ def main():
     # assert len(filtered) == 144
 
     root_dir = Path('evaluation/evaluation_outputs/outputs')
-    after_dt = datetime.strptime('2025-05-08_15-10-45', '%Y-%m-%d_%H-%M-%S')
-    before_dt = datetime.strptime('2025-05-08_16-28-32', '%Y-%m-%d_%H-%M-%S')
+    after_dt = datetime.strptime('2025-05-09_11-41-20', '%Y-%m-%d_%H-%M-%S')
+    before_dt = datetime.strptime('2025-05-09_12-11-32', '%Y-%m-%d_%H-%M-%S')
+
+    file_name_with_constraints = 'results_instruction_following_temperatue1.csv'
+    file_name_with_constraints_no_violations = (
+        'results_instruction_following_no_violations_temperatue1.csv'
+    )
 
     runs = sorted(get_folders_in_range(root_dir, after_dt, before_dt))
 
@@ -161,6 +166,7 @@ def main():
         if not res[str(folder)]['metrics'][0]:
             res[str(folder)]['metrics'][0] = 0
 
+        breakpoint()
         df = pd.DataFrame(res[str(folder)]['metrics'], columns=['metric'])
 
         # Which functions to not use
@@ -219,7 +225,7 @@ def main():
     # Save config json
     output_dir = Path('results')
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / 'results_instruction_following.csv'
+    output_file = output_dir / file_name_with_constraints
 
     # Save datatfram as csv
     results_all_with_constraints_averaged.to_csv(output_file, index=False)
@@ -230,10 +236,11 @@ def main():
         results_all.groupby('instance')[['metric']].mean().reset_index()
     )
 
-    output_file = output_dir / 'results_instruction_following_no_violatinos.csv'
-
+    output_file_no_violations = output_dir / file_name_with_constraints_no_violations
     # Save datatfram as csv
-    results_all_with_constraints_averaged_no_violations.to_csv(output_file, index=False)
+    results_all_with_constraints_averaged_no_violations.to_csv(
+        output_file_no_violations, index=False
+    )
 
 
 if __name__ == '__main__':

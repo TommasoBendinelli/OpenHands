@@ -3,16 +3,16 @@ import os
 from collections import deque
 
 from litellm import ChatCompletionToolParam
-
+from omegaconf import DictConfig
 import openhands.agenthub.codeact_agent.function_calling as codeact_function_calling
-from openhands.agenthub.codeact_agent.tools.bash import create_cmd_run_tool
-from openhands.agenthub.codeact_agent.tools.browser import BrowserTool
-from openhands.agenthub.codeact_agent.tools.finish import FinishTool
-from openhands.agenthub.codeact_agent.tools.ipython import IPythonTool
-from openhands.agenthub.codeact_agent.tools.llm_based_edit import LLMBasedFileEditTool
-from openhands.agenthub.codeact_agent.tools.str_replace_editor import (
-    create_str_replace_editor_tool,
-)
+from openhands.agenthub.error_bench_agent.tools.bash import create_cmd_run_tool
+# from openhands.agenthub.error_bench_agent.tools.browser import BrowserTool
+from openhands.agenthub.error_bench_agent.tools.finish import FinishTool
+from openhands.agenthub.error_bench_agent.tools.ipython import IPythonTool
+# from openhands.agenthub.error_bench_agent.tools.llm_based_edit import LLMBasedFileEditTool
+# from openhands.agenthub.error_bench_agent.tools.str_replace_editor import (
+#     create_str_replace_editor_tool,
+# )
 from openhands.agenthub.codeact_agent.tools.think import ThinkTool
 from openhands.agenthub.codeact_agent.tools.web_read import WebReadTool
 from openhands.controller.agent import Agent
@@ -70,6 +70,7 @@ class ErrorAgent(Agent):
         self,
         llm: LLM,
         config: AgentConfig,
+        cfg: DictConfig | None = None,
     ) -> None:
         """Initializes a new instance of the CodeActAgent class.
 
@@ -78,19 +79,19 @@ class ErrorAgent(Agent):
         - config (AgentConfig): The configuration for this agent
         """
         super().__init__(llm, config)
+        self.cfg = cfg
         self.pending_actions: deque[Action] = deque()
         self.reset()
         self.tools = self._get_tools()
-
         self.prompt_manager = PromptManager(
             prompt_dir=os.path.join(os.path.dirname(__file__), 'prompts'),
         )
-
         # Create a ConversationMemory instance
         self.conversation_memory = ConversationMemory(self.config, self.prompt_manager)
 
         self.condenser = Condenser.from_config(self.config.condenser)
         logger.debug(f'Using condenser: {type(self.condenser)}')
+        
 
         self.response_to_actions_fn = codeact_function_calling.response_to_actions
 
@@ -111,21 +112,21 @@ class ErrorAgent(Agent):
             tools.append(create_cmd_run_tool(use_short_description=use_short_tool_desc))
         if self.config.enable_think:
             tools.append(ThinkTool)
-        if self.config.enable_finish:
+        if self.config.enable_finish and not self.cfg.keep_going_until_succeed:
             tools.append(FinishTool)
-        if self.config.enable_browsing:
-            tools.append(WebReadTool)
-            tools.append(BrowserTool)
+        # if self.config.enable_browsing:
+        #     tools.append(WebReadTool)
+        #     tools.append(BrowserTool)
         if self.config.enable_jupyter:
             tools.append(IPythonTool)
-        if self.config.enable_llm_editor:
-            tools.append(LLMBasedFileEditTool)
-        elif self.config.enable_editor:
-            tools.append(
-                create_str_replace_editor_tool(
-                    use_short_description=use_short_tool_desc
-                )
-            )
+        # if self.config.enable_llm_editor:
+        #     tools.append(LLMBasedFileEditTool)
+        # if self.config.enable_editor:
+        #     tools.append(
+        #         create_str_replace_editor_tool(
+        #             use_short_description=use_short_tool_desc
+        #         )
+        #     )
         return tools
 
     def reset(self) -> None:
@@ -172,6 +173,61 @@ class ErrorAgent(Agent):
         logger.debug(
             f'Processing {len(condensed_history)} events from a total of {len(state.history)} events'
         )
+
+        if self.cfg.is_plotting_enabled:
+            content = [x.content for x in condensed_history if "content" in x.__dict__]
+            # Find all the times where data:image/png;base64, appears in the text
+            text = "\n".join(content)
+            pngs = []
+            for i, line in enumerate(text.split('\n')):
+                if 'data:image/png;base64,' in line:
+                    # breakpoint()
+                    # with open(current / f'{i}.png', 'wb') as f:
+                    #     f.write(png.encode('utf-8'))
+                    png = line.split('data:image/png;base64,')[1].split(')')[0]
+                    pngs.append(png)
+                # print(f"PNG: {png}")
+                # breakpoint()
+                # Save the image locally 
+                # from pathlib import Path
+                # import base64, pathlib
+                # from uuid import uuid4
+                # Check if self.uuid4 already exists
+
+
+        # # replace base64 images with a placeholder
+        # splitted = text.split('\n')
+        # for i, line in enumerate(splitted):
+        #     if '![image](data:image/png;base64,' in line:
+                
+        #         # breakpoint()
+        #         # with open(current / f'{i}.png', 'wb') as f:
+        #         #     f.write(png.encode('utf-8'))
+                
+        #         splitted[i] = (
+        #             '![image](data:image/png;base64, ...) already displayed to user'
+        #         )
+        # breakpoint()
+        # Save the image locally 
+                    # from pathlib import Path
+                    # import base64, pathlib
+                    # from uuid import uuid4
+                    # # Check if self.uuid4 already exists
+                    # if not ("uuid4" in dir(self)):
+                    #     self.uuid4 = uuid4()
+                    # current = Path("tmp/") / str(self.uuid4) # .mkdir(parents=True, exist_ok=True) 
+                    # current.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
+                    # # Generate a unique filename
+                    # # Check if there are alredy pictures saved and find the one with the highest number
+                    # existing_pictures = [int(p.stem) for p in current.glob("*.png")]
+                    # breakpoint()
+                    # if existing_pictures:
+                    #     i = max(existing_pictures) + 1
+                    # else:
+                    #     i = 0
+                    # b64 = line.split('data:image/png;base64,')[1].split(')')[0]
+                    # img_bytes = base64.b64decode(b64)
+                    # pathlib.Path(current / f'{i}.png').write_bytes(img_bytes)
         messages = self._get_messages(condensed_history)
         params: dict = {
             'messages': self.llm.format_messages_for_llm(messages),
@@ -207,7 +263,146 @@ class ErrorAgent(Agent):
             params['tools'] += unique_mcp_tools
         # log to litellm proxy if possible
         params['extra_body'] = {'metadata': state.to_llm_metadata(agent_name=self.name)}
-        response = self.llm.completion(**params)
+
+        # Remove anything that is more than contains more than 100 digits in a row
+
+        if True:
+            import re
+            filtered = []
+            long_digits_pattern = re.compile(r"(?:\d+)(?:,\d+){40,}")
+            
+            # block_pattern = re.compile(r"""
+            #     (?ms)                       # multiline & dot-all
+            #     ^\s*                        # optional leading spaces
+            #     \d+                         # first column number
+            #     (?:\s{2,}\d+)+              # at least one more “␣␣digits” (so ≥2 columns)
+            #     \s*\\\n                     # wide spaces + backslash + newline
+            #     .*?                         # lazily consume all lines
+            #     \[\d+\s+rows\s+x\s+\d+\s+columns\]  # the “[5 rows x 1002 columns]” line
+            #     """, re.VERBOSE)
+
+            # last_msg = params['messages'][-1]['content'][0]['text']
+            # print(last_msg)
+            # breakpoint()
+            # print(f"Last message: {last_msg}")
+            # breakpoint()
+          
+        if False:
+            for message in params['messages']:
+                text = message.get('content', '')[0]["text"]
+                # If the text contains 100 or more consecutive digits, replace it with "Result not available"
+                if long_digits_pattern.search(text):
+                    # Replace the message with a placeholder
+                    message['content'][0]['text'] = "Raw numbers of the dataset not available"
+                
+                # if "0.344435  1.548645" in text:
+                #     # Replace the message with a placeholder
+                #     message['content'][0]['text'] = "Raw numbers of the dataset not available"
+                    
+                filtered.append(message)
+                # If there are more than 100 digits in a row, remove the message
+                #if (
+
+                # message['content'][0]['text']
+        # Go over the messages and if there is any with more  tokens, don't visualize it
+
+        # Load all the images 
+        # self.uuid4
+        
+        # Find each message with "already displayed to user" and remove it
+    
+       
+        if self.cfg.is_plotting_enabled:
+            from pathlib import Path
+            png_iter = iter(pngs)
+            # Save all the images in a list inside the evaluation folder
+            images = (Path(self.cfg.eval_output_dir) / "images")
+            images.mkdir(parents=True, exist_ok=True)
+            # Save the images in the folder
+            for i, b64 in enumerate(pngs):
+                import base64
+                import pathlib  
+                # Convert the base64 string to bytes
+                img_bytes = base64.b64decode(b64)
+                pathlib.Path(images / f"{i}.png").write_bytes(img_bytes)
+
+            for idx, message in enumerate(params["messages"]):
+                rebuilt = [] 
+                                                # rebuild this message’s content
+                if isinstance(message["content"], list) and  self.cfg.llm_config == "gemini_lite":
+                    for part in message["content"]:
+                        if (
+                            part.get("type") == "text"
+                            and "already displayed to user" in part["text"]
+                        ):
+                            stripped = part["text"].replace("already displayed to user", "").strip()
+                            if stripped:
+                                rebuilt.append({"type": "text", "text": stripped})
+                            try:
+                                img_b64 = next(png_iter)
+                            except StopIteration as e:
+                                raise ValueError(
+                                    "Not enough images in `pngs` for every placeholder."
+                                ) from e
+
+                            rebuilt.append({
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{img_b64}",
+                                    "format": "image/png"
+                                }
+                            })
+                        else:
+                            rebuilt.append(part)                    # unchanged part
+                    message["content"] = rebuilt   
+                    
+                elif isinstance(message, dict):
+                    if (
+                            "content" in message and "already displayed to user" in message["content"]
+                        ):
+                            
+                            # Check how many times "already displayed to user" appears
+                            cnt = message["content"].count("already displayed to user")
+                            # 1️⃣ strip the marker
+                            stripped = message["content"].replace("already displayed to user", "").strip()
+                            if stripped:
+                                rebuilt.append({"type": "text", "text": stripped})
+
+
+                            for _ in range(cnt):
+                                # 2️⃣ inject next PNG
+                                try:
+                                    img_b64 = next(png_iter)
+                                except StopIteration as e:
+                                    raise ValueError(
+                                        "Not enough images in `pngs` for every placeholder."
+                                    ) from e
+                                # rebuilt.append({"type": "text", "text": f"Image {i}"})
+                                rebuilt.append({
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{img_b64}",
+                                    "format": "image/png"
+                                }})
+                                # rebuilt.append({
+                                #     "type": "image",
+                                #     "source": {
+                                #         "type": "base64",
+                                #         "media_type": "image/png",
+                                #         "data": f"{img_b64}",
+                                #     }
+                                # })
+                            params["messages"][idx] = {"content": rebuilt, "role": message["role"]}  # put rebuilt list back
+                            # ← put rebuilt list back
+                
+            # clone *after* the edits so the two dicts differ only by this change
+            new_msx = copy.deepcopy(params)
+        else:
+            new_msx = params
+        
+        response = self.llm.completion(**new_msx)
+       
+        
 
         logger.debug(f'Response from LLM: {response}')
         actions = self.response_to_actions_fn(response)

@@ -361,6 +361,11 @@ class ConversationMemory:
             splitted = text.split('\n')
             for i, line in enumerate(splitted):
                 if '![image](data:image/png;base64,' in line:
+                    
+                    # breakpoint()
+                    # with open(current / f'{i}.png', 'wb') as f:
+                    #     f.write(png.encode('utf-8'))
+                    
                     splitted[i] = (
                         '![image](data:image/png;base64, ...) already displayed to user'
                     )

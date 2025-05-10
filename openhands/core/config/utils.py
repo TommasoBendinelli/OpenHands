@@ -415,7 +415,6 @@ def get_llm_config_arg(
         llm_config_arg = llm_config_arg[4:]
 
     logger.openhands_logger.debug(f'Loading llm config from {llm_config_arg}')
-
     # load the toml file
     try:
         with open(toml_file, 'r', encoding='utf-8') as toml_contents:

@@ -98,7 +98,7 @@ if __name__ == '__main__':
         max_peaks=10,
         samples_per_class=50,
         length=100,
-        width=0.02,
+        width=0.01,
         output_folder=output_folder,
         separate_x_and_y=True,
     )

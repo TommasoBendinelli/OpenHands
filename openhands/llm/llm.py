@@ -216,8 +216,14 @@ class LLM(RetryMixin, DebugMixin):
                 args = args[2:]
             elif 'messages' in kwargs:
                 messages = kwargs['messages']
-
+            print(kwargs["messages"])
             # ensure we work with a list of messages
+                 
+            # work on a deep-copied object so we never mutate the caller's data
+     
+                        
+
+
             messages = messages if isinstance(messages, list) else [messages]
 
             # handle conversion of to non-function calling messages if needed
@@ -274,6 +280,48 @@ class LLM(RetryMixin, DebugMixin):
             )
             resp: ModelResponse = self._completion_unwrapped(*args, **kwargs)
 
+                   ### ADDED
+            # messages_with_image = copy.deepcopy(messages)
+            
+            
+            # delete any entry where "image_url" is a key
+            for message in messages:
+                if "content" in message :
+                    if isinstance(message["content"], str):
+                        continue # There is no image in this case
+                    
+                    if isinstance(message["content"], list):
+                        # if the content is a list, remove any entry where "image_url" is a key
+                        new_msgs = []
+                        for msg in message["content"]:
+                            if not "image_url" in msg:
+                                new_msgs.append(msg)
+                        
+                        message["content"] = new_msgs
+
+                        new_msgs = []
+                        for msg in message["content"]:
+                            assert isinstance(msg, dict)
+                            if not "image_url" in msg:
+                                new_msgs.append(msg)
+                        
+                        if len(new_msgs) == 2 and "EXECUTION RESULT of [function]" in new_msgs[0]['text'] and self.config.model == 'anthropic/claude-3.7-sonnet':
+                            # Delete the first messsage
+                            message["content"] = "EXECUTION RESULT of [execute_ipython_cell]:\n" + new_msgs[1]['text']
+                        elif len(new_msgs) == 2 and "EXECUTION RESULT of [execute_ipython_cell]" in new_msgs[0]['text'] and "gemini" in self.config.model:
+                            message["content"] = [{"type": "text", "text": new_msgs[0]['text'] + new_msgs[1]['text']}]
+                            # First replace [function] with ["execute_ipython_cell"]\m
+                        # if len(new_msgs) == 1 and isinstance(messages[0]['content'], str):
+                        #     # if there is only one message and it's a string, we can just set it to the string
+                        #     message["content"] = new_msgs[0]
+                        else:
+                            message["content"] = new_msgs
+
+                    else:
+                        raise ValueError("Type is either str or list") 
+                
+                
+            breakpoint()
             # Calculate and record latency
             latency = time.time() - start_time
             response_id = resp.get('id', 'unknown')

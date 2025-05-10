@@ -1,8 +1,9 @@
 import hashlib
 import os
 import uuid
-from typing import Callable, Tuple, Type
+from typing import Callable, Optional, Tuple, Type
 
+from omegaconf import DictConfig
 from pydantic import SecretStr
 
 import openhands.agenthub  # noqa F401 (we import this to get the agents registered)
@@ -169,14 +170,20 @@ def create_memory(
     return memory
 
 
-def create_agent(config: AppConfig) -> Agent:
+def create_agent(config: AppConfig, cfg: Optional[DictConfig] = None) -> Agent:
     agent_cls: Type[Agent] = Agent.get_cls(config.default_agent)
     agent_config = config.get_agent_config(config.default_agent)
     llm_config = config.get_llm_config_from_agent(config.default_agent)
+    # Override the native_tool_calling setting if the agent config has it
+    if cfg:
+        llm_config.native_tool_calling = cfg.native_tool_calling
+        llm_config.temperature = cfg.temperature
+        llm_config.top_p = cfg.top_p
 
     agent = agent_cls(
         llm=LLM(config=llm_config),
         config=agent_config,
+        cfg=cfg,
     )
 
     return agent
@@ -201,6 +208,9 @@ def create_controller(
     except Exception as e:
         logger.debug(f'Cannot restore agent state: {e}')
 
+    # Overwrite max_iteration of the inital state if initial state is not None
+    if initial_state and config.max_iterations:
+        initial_state.max_iterations = config.max_iterations
     controller = AgentController(
         agent=agent,
         max_iterations=config.max_iterations,

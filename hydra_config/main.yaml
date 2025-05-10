@@ -9,8 +9,38 @@ class_type: "data_inputation"
 instance: "wine"
 constraints: 0
 hints: 0
+trajectory_visualiser_folder: 'trajectory-visualizer/public'
 solution_iterations: 0
+template_text: False
+enable_browsing_for_pictures: False
+cheating_attempt: False
+warm_against_cheating: False
+max_budget_per_task: 0
+prompt_variation: 0
+disable_numbers: False
+seed: 0
+show_solution_iterations: True
+show_max_budget_per_task: False
+keep_going_until_succeed: False
+include_constraints: False
+native_tool_calling: True
+instruction_constraint: '' 
+is_sklearn_banned: True
+max_iterations: 30
+temperature: 0
+top_p: 1
+is_plotting_enabled: True
+
+# Inject current date and time as YYYY-MM-DD_HH-MM-SS
+timestamp: ${now:%Y-%m-%d_%H-%M-%S}
+# timestamp: ${now:%Y-%m-%d}
+sid: "" # If empty, use the default
 fold: -1 # Only used in anomaly detection so far, for the others it's -1
 hydra:
   job:
     chdir: false
+  launcher:
+    n_jobs: 2    # <-- limit to 2 parallel runs
+
+defaults:
+  - override hydra/launcher: joblib

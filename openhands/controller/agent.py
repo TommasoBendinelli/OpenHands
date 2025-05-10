@@ -8,6 +8,8 @@ if TYPE_CHECKING:
     from openhands.core.config import AgentConfig
     from openhands.events.action import Action
     from openhands.events.action.message import SystemMessageAction
+from omegaconf import DictConfig
+
 from openhands.core.exceptions import (
     AgentAlreadyRegisteredError,
     AgentNotRegisteredError,
@@ -37,6 +39,7 @@ class Agent(ABC):
         self,
         llm: LLM,
         config: 'AgentConfig',
+        cfg: DictConfig | None = None,
     ):
         self.llm = llm
         self.config = config
