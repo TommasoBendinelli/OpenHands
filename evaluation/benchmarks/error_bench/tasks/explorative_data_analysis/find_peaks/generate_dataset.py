@@ -1,124 +1,209 @@
+#!/usr/bin/env python
+"""
+generate_peak_dataset.py – peak‑count benchmark **non‑overlapping** v2
+=====================================================================
+• Equal white‑noise variance in both classes (σ = 0.2 by default).
+• **Class 0** – 3 – 4 peaks that satisfy the amplitude/area constraints.
+• **Class 1** – 5 – 6 peaks that satisfy the amplitude/area constraints.
+• Peaks are *Gaussian‑shaped* and **non‑overlapping**: the ±3·σ support of any
+  pair of peaks are disjoint.
+• A peak’s amplitude must be ≥ `min_peak_height` (X) and its total area
+  (≈ A·σ·√(2π)) must be ≥ `min_peak_area` (Y).
+
+Under these settings the one‑feature decision stump that learns
+"count ≥ 4.5" still perfectly separates the two classes.
+"""
+from __future__ import annotations
+
 import sys
 from pathlib import Path
+from typing import Tuple, List
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.signal import find_peaks_cwt, ricker
+import random
 
+# If utils.save_datasets is one directory up
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-import matplotlib.pyplot as plt
-from utils import save_datasets
+from utils import save_datasets  # type: ignore
+
+# ────────────────────────────────────────────────────────────
+#  Helper functions
+# ────────────────────────────────────────────────────────────
 
 
-def number_cwt_peaks(x, n):
-    """
-    Number of different peaks in x using continuous wavelet transform.
-
-    :param x: 1D numpy array, the time series
-    :param n: int, maximum width to consider
-    :return: int, number of detected peaks
-    """
-    widths = np.arange(1, n + 1)
-    return len(find_peaks_cwt(x, widths, wavelet=ricker))
+def _gaussian(x: np.ndarray, mu: float, sigma: float, A: float) -> np.ndarray:
+    """Return a Gaussian peak A·exp(−0.5·((x−μ)/σ)²)."""
+    return A * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
 
 
-def generate_signal(n_peaks, length=100, width=0.02):
-    """
-    Generate a synthetic signal containing n_peaks Gaussian bumps.
+def _sample_non_overlapping_peaks(
+    n_points: int,
+    n_peaks: int,
+    rng: np.random.Generator,
+    min_peak_height: float,
+    min_peak_area: float,
+    min_sigma: float,
+    max_sigma: float,
+    sep_factor: float = 3.0,  # multiply σ to define the exclusion radius
+) -> List[tuple[int, float, float]]:
+    """Return a list of (centre, sigma, amplitude) for non‑overlapping peaks."""
+    peaks: List[tuple[int, float, float]] = []
+    attempts = 0
+    max_attempts = 10_000  # safeguard against infinite loops
+    while len(peaks) < n_peaks and attempts < max_attempts:
+        attempts += 1
+        # amplitude first – it influences the minimal σ allowed by area
+        amp = rng.uniform(min_peak_height, min_peak_height * 1.5)
+        sigma_min_area = min_peak_area / (amp * np.sqrt(2 * np.pi))
+        sigma = rng.uniform(max(min_sigma, sigma_min_area), max_sigma)
 
-    :param n_peaks: int, number of peaks to embed
-    :param length: int, number of time points
-    :param width: float, standard deviation of each Gaussian bump
-    :return: 1D numpy array of shape (length,)
-    """
-    t = np.linspace(0, 1, length)
-    x = np.zeros_like(t)
+        # centre must leave sep_factor*σ margin inside the signal range
+        left_margin = int(np.ceil(sep_factor * sigma))
+        right_margin = n_points - left_margin
+        if right_margin <= left_margin:
+            raise ValueError("Signal too short for the requested peak parameters.")
+        centre = int(rng.integers(left_margin, right_margin))
 
-    if n_peaks == 1:
-        # Make the peak smaller
-        width = 0.05
-    elif n_peaks > 1:
-        # Make the peak larger
-        width = 0.005
-    centers = np.linspace(0.1, 0.9, n_peaks)
-    for c in centers:
-        x += width * np.exp(-((t - c) ** 2) / (2 * width**2))
+        # check overlap with existing peaks
+        ok = True
+        for c_prev, s_prev, _ in peaks:
+            if abs(centre - c_prev) <= sep_factor * (sigma + s_prev):
+                ok = False
+                break
+        if ok:
+            peaks.append((centre, sigma, amp))
 
-    return x
+    if len(peaks) < n_peaks:
+        raise RuntimeError(
+            f"Could only place {len(peaks)} non‑overlapping peaks after {attempts} attempts; "
+            "try reducing `n_peaks` or `max_sigma`, or shortening `sep_factor`."
+        )
+    return peaks
 
 
-def create_dataset(
-    max_peaks=5,
-    samples_per_class=50,
-    length=100,
-    width=0.02,
-    output_folder='time_series_dataset.csv',
-    separate_x_and_y=False,
-):
-    """
-    Build a CSV dataset of signals labeled by their true number of peaks.
-    label 0 -> 1 peaks
-    label 1 -> >1 peaks
+def _generate_peak_signal(
+    n_points: int,
+    n_peaks: int,
+    noise_std: float,
+    rng: np.random.Generator,
+    min_peak_height: float,
+    min_peak_area: float,
+    min_sigma: float = 3.0,
+    max_sigma: float = 15.0,
+) -> np.ndarray:
+    """Return a 1‑D signal with *n_peaks* **non‑overlapping** Gaussian peaks plus noise."""
+    x = np.arange(n_points)
+    sig = np.zeros_like(x, dtype=float)
 
-    :param max_peaks: int, highest peak-count class
-    :param samples_per_class: int, how many samples in each class
-    :param length: int, length of each time series
-    :param width: float, width of each Gaussian peak
-    :param output_path: str, filename for saving the CSV
-    :return: pandas.DataFrame of shape (max_peaks * samples_per_class, length + 1)
-    """
-    data = []
-    labels = []
+    peaks = _sample_non_overlapping_peaks(
+        n_points,
+        n_peaks,
+        rng,
+        min_peak_height,
+        min_peak_area,
+        min_sigma,
+        max_sigma,
+    )
 
-    # Generate signals with 0 and >0 peaks
-    # Both classes should be represented equally
-    for _ in range(samples_per_class):
-        x = generate_signal(1, length, width)
-        data.append(x)
-        labels.append(0)
+    for centre, sigma, amp in peaks:
+        sig += _gaussian(x, mu=centre, sigma=sigma, A=amp)
 
-        # Create number of peaks from 2 to max_peaks randomly
-        k = np.random.randint(2, max_peaks + 1)
-        x = generate_signal(k, length, width)
-        data.append(x)
-        labels.append(1)
+    sig += rng.normal(scale=noise_std, size=n_points)
 
-    df = pd.DataFrame(np.vstack(data))
-    df['label'] = labels
+    # Add random bias to the signal
+    bias = rng.uniform(-5, 5)
+    sig += bias
+    return sig
 
+
+def _one_sample(
+    n_points: int,
+    label: int,
+    rng: np.random.Generator,
+    noise_std: float,
+    min_peak_height: float,
+    min_peak_area: float,
+    min_pk0: int,
+    max_pk0: int,
+    min_pk1: int,
+    max_pk1: int,
+) -> Tuple[np.ndarray, int]:
+    n_peaks = (
+        rng.integers(min_pk0, max_pk0 + 1)
+        if label == 0
+        else rng.integers(min_pk1, max_pk1 + 1)
+    )
+    sig = _generate_peak_signal(
+        n_points,
+        n_peaks,
+        noise_std,
+        rng,
+        min_peak_height,
+        min_peak_area,
+    )
+    return sig, label
+
+
+def generate_dataset(
+    num_samples: int = 1000,
+    n_points: int = 1000,
+    noise_std: float = 0.2,
+    min_peak_height: float = 2.0,  #  X – minimum allowed peak amplitude
+    min_peak_area: float = 5.0,    #  Y – minimum allowed peak area
+    min_pk0: int = 3,
+    max_pk0: int = 4,
+    min_pk1: int = 5,
+    max_pk1: int = 6,
+    seed: int | None = None,
+) -> pd.DataFrame:
+    """Return a DataFrame with one time‑series per row and a `label` column."""
+    rng = np.random.default_rng(seed)
+    rows, labels = [], []
+    for _ in range(num_samples):
+        lbl = rng.integers(0, 2)  # 0 or 1 with equal prob
+        sig, lab = _one_sample(
+            n_points,
+            lbl,
+            rng,
+            noise_std,
+            min_peak_height,
+            min_peak_area,
+            min_pk0,
+            max_pk0,
+            min_pk1,
+            max_pk1,
+        )
+        rows.append(sig)
+        labels.append(lab)
+
+    df = pd.DataFrame(np.vstack(rows))
+    df["label"] = labels
     return df
 
 
-if __name__ == '__main__':
-    # Generate and save the dataset
-    output_folder = Path(__file__).resolve().parent
+# ────────────────────────────────────────────────────────────
+#  Script entry‑point
+# ────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    np.random.seed(42)
+    random.seed(42)
+    out_dir = Path(__file__).resolve().parent
 
-    train_df = create_dataset(output_folder=output_folder)
-    test_df = create_dataset(
-        max_peaks=10,
-        samples_per_class=50,
-        length=100,
-        width=0.01,
-        output_folder=output_folder,
-        separate_x_and_y=True,
-    )
-    print(train_df.head())
-    save_datasets(train_df=train_df, test_df=test_df, output_folder=output_folder)
+    # identical noise & peak specs in both splits
+    train_df = generate_dataset(seed=0)
+    test_df = generate_dataset(seed=1)
 
-    # Quick visual sanity check
-    # Plot signal from both classses
+    save_datasets(train_df=train_df, test_df=test_df, output_folder=out_dir)
 
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    class0_signal = train_df[train_df['label'] == 0].iloc[0, :-1]
-    plt.plot(class0_signal)
-    plt.title('Signal 1 peaks (label 0)')
-
-    plt.subplot(1, 2, 2)
-    class1_signal = train_df[train_df['label'] == 1].iloc[0, :-1]
-    plt.plot(class1_signal)
-    plt.title('Signal >1 peaks (label 1)')
-
+    # quick visual sanity‑check
+    fig, ax = plt.subplots(1, 2, figsize=(10, 4), dpi=100)
+    ax[0].plot(train_df[train_df["label"] == 0].iloc[0, :-1])
+    ax[0].set_title("class 0: 3–4 peaks (non‑overlapping)")
+    ax[0].axis("off")
+    ax[1].plot(train_df[train_df["label"] == 1].iloc[0, :-1])
+    ax[1].set_title("class 1: 5–6 peaks (non‑overlapping)")
+    ax[1].axis("off")
     plt.tight_layout()
-    plt.show()
-    plt.savefig(output_folder / 'dataset_sanity_check.png')
+    fig.savefig(out_dir / "peaks.png")

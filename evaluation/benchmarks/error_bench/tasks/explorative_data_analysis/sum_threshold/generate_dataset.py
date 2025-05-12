@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils import save_datasets   # noqa: E402
-
+import random
 
 def is_high_sum(row: np.ndarray, thresh: float = 1.5) -> int:
     """Return 1 if the sum of first three columns > thresh, else 0."""
@@ -44,11 +44,14 @@ def create_dataset(n_samples=1_000, n_feats=6, thresh=1.5,
 
 
 if __name__ == '__main__':
+    # Set seed for reproducibility
+    np.random.seed(42)
+    random.seed(42)
+    output_folder = Path(__file__).resolve().parent
     out_dir = Path(__file__).resolve().parent
     train_df = create_dataset(output_folder=out_dir)
     test_df  = create_dataset(n_samples=1_000, n_feats=6, thresh=1.5,
                               output_folder=out_dir)
-
     save_datasets(train_df, test_df, out_dir)
 
     # sanity plot: sum(feat1..3) vs. label

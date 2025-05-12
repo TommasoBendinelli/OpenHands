@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import random
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils import save_datasets   # noqa: E402
 
@@ -24,24 +24,33 @@ def spikes_synchronous(x_flat: np.ndarray, length: int, z: float = 4.0, tol: int
     return 1
 
 
-def generate_sample(sync: bool, length: int = 400, n_spikes: int = 3, noise: float = 0.4):
-    """
-    Two-channel noise; optionally embed synchronous spikes.
-    """
-    ch1 = np.random.normal(0, noise, size=length)
-    ch2 = np.random.normal(0, noise, size=length)
+def generate_sample(sync: bool,
+                    length: int = 400,
+                    n_spikes: int = 3,
+                    noise: float = 0.4):
+    # ── NEW: random baseline per channel ─────────────────────────────
+    baseline1 = np.random.uniform(-5, 5)
+    baseline2 = np.random.uniform(-5, 5)
 
-    spike_locs = np.random.choice(np.arange(20, length - 20), size=n_spikes, replace=False)
+    ch1 = np.random.normal(0, noise, size=length) + baseline1
+    ch2 = np.random.normal(0, noise, size=length) + baseline2
+
+    spike_locs = np.random.choice(np.arange(20, length - 20),
+                                  size=n_spikes, replace=False)
+
     for loc in spike_locs:
         amp = np.random.uniform(8, 12)
+        # ch-1 always gets the spike at *loc*
         ch1[loc] += amp
+
         if sync:
+            # synchronous: ch-2 spike at the same index  (+ small jitter)
             ch2[loc] += amp + np.random.normal(0, 0.3)
         else:
+            # independent: ch-2 spike somewhere else
             other_loc = (loc + np.random.randint(5, 30)) % length
             ch2[other_loc] += amp
     return np.concatenate([ch1, ch2])
-
 
 def create_dataset(n_samples=200, length=400, output_folder: Path | str = 'syncspike_dataset.csv'):
     data, labels = [], []
@@ -58,6 +67,11 @@ def create_dataset(n_samples=200, length=400, output_folder: Path | str = 'syncs
 
 
 if __name__ == '__main__':
+    np.random.seed(42)
+    random.seed(42)
+
+    out_dir = Path(__file__).resolve().parent
+
     out_dir = Path(__file__).resolve().parent
     train_df = create_dataset(output_folder=out_dir)
     test_df  = create_dataset(n_samples=200, length=600, output_folder=out_dir)

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import periodogram
-
+import random
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils import save_datasets   # noqa: E402
 
@@ -53,6 +53,8 @@ def create_dataset(n_samples=256, length=512, output_folder: Path | str = 'freq_
 
 
 if __name__ == '__main__':
+    np.random.seed(42)
+    random.seed(42)
     out_dir = Path(__file__).resolve().parent
     train_df = create_dataset(output_folder=out_dir)
     test_df  = create_dataset(n_samples=256, length=768, output_folder=out_dir)

@@ -1,4 +1,4 @@
 {
     "hint": "Try to check if the time series is stationary or not",
-    "is_time_series": true
+    "is_time_series": false
   }

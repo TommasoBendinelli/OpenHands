@@ -1,121 +1,120 @@
+#!/usr/bin/env python
+"""
+generate_ts_dataset.py – final version
+All rows are *demeaned and scaled to unit variance*, so no simple magnitude
+feature can leak the label.
+"""
+
 import sys
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.stattools import adfuller
-
+import random
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils import save_datasets
 
 
-def adfuller_stationarity_test(series, significance=0.05):
-    """
-    Adjusted Augmented Dickey-Fuller test for stationarity of time series.
-    """
-    result = adfuller(series.values)
-    print(f'ADF Statistic: {result[0]}')
-    print(f'p-value: {result[1]}')
-    for key, value in result[4].items():
-        print('\t%s: %.3f' % (key, value))
-    if result[1] <= significance:
-        print('The time series is stationary.')
-        return True
-    else:
-        print('The time series is non-stationary.')
-        return False
+# ──────────────────────────────────────────────────────────────────────────────
+def adfuller_stationarity_test(series, significance: float = 0.05) -> bool:
+    """Print and return the ADF decision (helper, unchanged)."""
+    stat, p, _, _, crit_vals, _ = adfuller(series.values)
+    print(f"ADF statistic: {stat:.3f}   p-value: {p:.3g}")
+    if p <= significance:
+        print("→ stationary");   return True
+    print("→ non-stationary");  return False
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+def _standardise(ts: np.ndarray) -> np.ndarray:
+    """Return (ts − mean) / std  – always mean 0, std 1."""
+    ts = ts - ts.mean()
+    return ts / ts.std(ddof=1)
 
 
 def generate_synthetic_ts_signal(
-    num_time_series_values, stationarity=True, mean=0, std=1
-):
+    n_steps: int,
+    stationary: bool,
+    std: float = 1.0,
+    phi: float = 0.6,          # AR(1) coefficient
+) -> np.ndarray:
     """
-    Generate random stationary and non-stationary time series data.
+    • stationary      →  AR(1)  x_t = φ x_{t−1} + ε_t
+    • non-stationary  →  random walk  x_t = x_{t−1} + ε_t
+    ε_t ~ N(0, σ²).  Finally, standardise the whole series.
     """
-    # Generate stationary time series data
-    if stationarity:
-        ts_data = np.random.normal(loc=mean, scale=std, size=num_time_series_values)
+    ε = np.random.normal(scale=std, size=n_steps)
+
+    if stationary:
+        x = np.empty(n_steps)
+        x[0] = ε[0] / (1 - phi)
+        for t in range(1, n_steps):
+            x[t] = phi * x[t - 1] + ε[t]
     else:
-        ts_data = np.cumsum(
-            np.random.normal(loc=mean, scale=std, size=num_time_series_values)
-        )
+        x = ε.cumsum()
 
-    return ts_data
+    return _standardise(x)      # ← **critical anti-leak step**
 
 
-def generate_dataset(num_samples=300, num_time_series_values=1000, mean=0, std=1):
-    """
-    Generate a dataset of time series data with labels (0,1) indicating stationarity. One sample is one time series.
-    num_samples: int, number of time series samples to generate
-    num_time_series_values: int, number of time series values in each sample. needs to be sufficiently large
-    return: pandas.DataFrame, dataset with time series data and labels
-    """
-    data = []
-    labels = []
-    for i in range(num_samples):
-        # Generate random time series data
-        stationarity = np.random.choice([True, False])
-        ts_data = generate_synthetic_ts_signal(
-            num_time_series_values, stationarity, mean=mean, std=std
-        )
-        data.append(ts_data)
-        labels.append(1 if stationarity else 0)
-    # Create DataFrame
-    df = pd.DataFrame(np.vstack(data))
-    df['label'] = labels
+def generate_dataset(
+    n_samples: int = 300,
+    n_steps: int = 1_000,
+    std: float = 1.0,
+) -> pd.DataFrame:
+    """Return DataFrame with n_steps columns + ‘label’."""
+    rows, labels = [], []
+    for _ in range(n_samples):
+        is_stat = bool(np.random.randint(0, 2))
+        rows.append(generate_synthetic_ts_signal(n_steps, is_stat, std))
+        labels.append(1 if is_stat else 0)
+    df = pd.DataFrame(np.vstack(rows))
+    df["label"] = labels
     return df
 
 
-if __name__ == '__main__':
-    output_folder = Path(__file__).resolve().parent
+# ──────────────────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    np.random.seed(42)
+    random.seed(42)
+    output_dir = Path(__file__).resolve().parent
 
-    # Generate synthetic time series data
-    train_df_1 = generate_dataset(mean=0, std=1)
-    train_df_2 = generate_dataset(mean=2, std=3)
-    test_df = generate_dataset(mean=3, std=15)
-    train_df = pd.concat([train_df_1, train_df_2], ignore_index=True)
+    # build train / test splits (same σ for all → no row-mean leak)
+    train_df = generate_dataset(n_samples=600, std=2.0)
+    test_df  = generate_dataset(n_samples=300, std=2.0)
 
+    print("Train preview:")
     print(train_df.head())
 
-    save_datasets(train_df=train_df, test_df=test_df, output_folder=output_folder)
+    save_datasets(train_df=train_df, test_df=test_df, output_folder=output_dir)
 
-    # # Save the dataset to a CSV file
-    # train_df.to_csv(output_folder / 'train.csv', index=False)
-    # y_test = test_df['label']
-    # y_test.to_csv(output_folder / 'test_gt.csv', index=False)
+    # optional: quick sanity check that means are ~0
+    print("\nRow-wise means should be ~0 (first 5 rows):")
+    print(train_df.iloc[:5, :-1].mean(axis=1).round(6).values)
 
-    # X_test = test_df.drop(columns=['label'])
-
-    # X_test.to_csv(output_folder / 'test.csv', index=False)
-
-    # Plot one stationary and one non-stationary time series
-    import matplotlib.pyplot as plt
-
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    stationary_ts = train_df[train_df['label'] == 1].iloc[0, :-1]
-    plt.plot(stationary_ts)
-    plt.title('Stationary Time Series')
-    plt.subplot(1, 2, 2)
-    non_stationary_ts = train_df[train_df['label'] == 0].iloc[0, :-1]
-    plt.plot(train_df.iloc[1, :-1])
-    plt.title('Non-Stationary Time Series')
-    plt.show()
-    plt.savefig(output_folder / 'stationary_non_stationary_ts.png')
-
-    # Do the same plot for the test set
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    stationary_ts = test_df[test_df['label'] == 1].iloc[0, :-1]
-    plt.plot(stationary_ts)
-    plt.title('Stationary Time Series')
-    plt.subplot(1, 2, 2)
-    non_stationary_ts = test_df[test_df['label'] == 0].iloc[0, :-1]
-    plt.plot(test_df.iloc[1, :-1])
-    plt.title('Non-Stationary Time Series')
-    plt.show()
-    plt.savefig(output_folder / 'stationary_non_stationary_ts_test.png')
-
-    # Test stationarity of the generated time series
-    print('Testing stationarity of the first time series:')
+    # quick ADF demo
+    print("\nADF on first training series:")
     adfuller_stationarity_test(train_df.iloc[0, :-1])
+
+    # Plot 6 examples of training data
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(12, 6))
+    for i in range(6):
+        plt.subplot(2, 3, i + 1)
+        plt.plot(train_df.iloc[i, :-1])
+        plt.title(f"label = {train_df.iloc[i, -1]}")
+        plt.xlabel("Time")
+        plt.ylabel("Amplitude")
+    plt.tight_layout()
+    plt.savefig(output_dir / "train_dataset_example.png")
+
+    # Plot 6 expamples of test data
+    plt.figure(figsize=(12, 6))
+    for i in range(6):
+        plt.subplot(2, 3, i + 1)
+        plt.plot(test_df.iloc[i, :-1])
+        plt.title(f"label = {test_df.iloc[i, -1]}")
+        plt.xlabel("Time")
+        plt.ylabel("Amplitude")
+    plt.tight_layout()
+    plt.savefig(output_dir / "test_dataset_example.png")
+    

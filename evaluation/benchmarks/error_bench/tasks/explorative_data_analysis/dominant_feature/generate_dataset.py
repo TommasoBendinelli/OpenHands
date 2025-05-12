@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import random
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils import save_datasets   # noqa: E402
 
@@ -47,6 +47,8 @@ def create_dataset(n_samples=1_200, n_feats=6,
 
 
 if __name__ == '__main__':
+    np.random.seed(42)
+    random.seed(42)
     out_dir = Path(__file__).resolve().parent
     train_df = create_dataset(output_folder=out_dir)
     test_df  = create_dataset(n_samples=1_200, n_feats=6,

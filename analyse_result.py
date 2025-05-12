@@ -203,7 +203,7 @@ def get_folders_in_range(
 
 # Get all the entries evaluation/evaluation_outputs/outputs
 ROOT_DIR = Path('evaluation/evaluation_outputs/outputs')
-AFTER = datetime.strptime('2025-05-08_20-55-30', '%Y-%m-%d_%H-%M-%S')
+AFTER = datetime.strptime('2025-05-11_01-00-00', '%Y-%m-%d_%H-%M-%S')
 BEFORE = None  # datetime.strptime('2025-05-06_11-47-22', '%Y-%m-%d_%H-%M-%S')
 # AFTER = None
 # BEFORE = None
@@ -217,6 +217,10 @@ solutions = {
     'set_points': 'The correct feature is to consider whether there are set points in the signal or not.',
 }
 
+dataset =[
+    'row_variance','phase_aligment','simultanus_spike','channel_corr','outlier_ratio','channel_divergence','variance_burst','interaction_sign','ground_mean_threashold','dominant_feature','common_frequency','predict_ts_stationarity','zero_crossing','sum_threshold','spike_presence','cofounded_group_outlier','find_peaks','row_max_abs','periodic_presence'
+]
+
 
 def main():
     runs = sorted(get_folders_in_range(ROOT_DIR, AFTER, BEFORE))
@@ -229,6 +233,10 @@ def main():
         metadata, outputs, cfg = _load_experiment(folder)
 
         if not outputs:
+            continue
+
+        if len(outputs[0]['history']) < 5:
+            print(f'Not enough history for {folder}')
             continue
 
         messages = '\n'.join([x['message'] for x in outputs[0]['history'][2:]])
@@ -268,16 +276,21 @@ def main():
             number_of_submissions = 0
         res[str(folder)]['metrics'].append(metric)
         res[str(folder)]['number_of_submissions'] = number_of_submissions
-        if 'llm_metrics' in outputs[0]['history'][-1]:
-            accumulated_cost = outputs[0]['history'][-1]['llm_metrics'][
-                'accumulated_cost'
-            ]
-        elif 'llm_metrics' in outputs[0]['history'][-2]:  # To check why this is needed
-            accumulated_cost = outputs[0]['history'][-2]['llm_metrics'][
-                'accumulated_cost'
-            ]
+        if 'metrics' in outputs[0]:
+            accumulated_cost = outputs[0]['metrics']['accumulated_cost'] 
+        # elif 'llm_metrics' in outputs[0]['history'][-1]:
+        #     accumulated_cost = outputs[0]['history'][-1]['llm_metrics'][
+        #         'accumulated_cost'
+        #     ]
+        # elif 'llm_metrics' in outputs[0]['history'][-2]:  # To check why this is needed
+        #     accumulated_cost = outputs[0]['history'][-2]['llm_metrics'][
+        #         'accumulated_cost'
+        #     ]
         else:
-            accumulated_cost = np.nan
+            raise ValueError(
+                f'No accumulated cost found in {folder}. Please check the output.'
+            )
+            # accumulated_cost = np.nan
 
         scores = list(res[str(folder)]['metrics'])
         # msg_history = outputs[0]["history"]
@@ -286,44 +299,65 @@ def main():
         def compute_cost_per_score(
             msgs: list[dict],
             costs: list[dict],
-            scores: list[float],
-            number_of_submissions: int,
+            scores: list[float],    
+            llm_config: str,
         ) -> float:
             """
             Compute the cost per score.
             """
             cost_associated_with_score = []
             to_go_idx = 0
-            # conten_msg = [x['content'] for x in msgs if 'content' in x]
-            for idx, score in enumerate(scores, 1):
-                # Search in which msg there is "idx: score"
-                for idx_msg, msg in enumerate(msgs[to_go_idx:], to_go_idx):
+
+            if llm_config == 'open_router_claude':
+                # Get the index of the first message that contains "Accuracy on test set"
+                accumulated_cost = 0
+                # if len(scores) > 1:
+                #     breakpoint()
+                for idx, msg in enumerate(msgs):
+                    if 'llm_metrics' in msg:
+                        accumulated_cost = msg['llm_metrics']['accumulated_cost'] # + accumulated_cost
+
                     if 'content' not in msg:
                         continue
-                    if f'Accuracy on test set {idx}:' in msg['content']:
-                        to_go_idx = idx
-                        break
+                    if 'Accuracy on test set' in msg['content']:
+                        cost_associated_with_score.append(accumulated_cost)
+                return cost_associated_with_score
+            
+            elif "gemini" in llm_config:
+                for idx, score in enumerate(scores, 1):
+                    # Search in which msg there is "idx: score"
+                    for idx_msg, msg in enumerate(msgs[to_go_idx:], to_go_idx):
+                        if 'content' not in msg:
+                            continue
+                        if f'Accuracy on test set {idx}:' in msg['content']:
+                            to_go_idx = idx
+                            break
 
-                # if number_of_submissions > 0:
-                #     assert to_go_idx != 0, "to_go_idx should not be 0"
+                    # if number_of_submissions > 0:
+                    #     assert to_go_idx != 0, "to_go_idx should not be 0"
 
-                # Get the idx - 1 and sum the costs up to that point
-                if to_go_idx == 0 and len(scores) > 1:
-                    cost_sum = np.nan
-                elif to_go_idx == 0 and len(scores) == 1:
-                    cost_sum = sum(x['cost'] for x in costs[:])
-                else:
-                    cost_sum = sum(x['cost'] for x in costs[:to_go_idx])
+                    # Get the idx - 1 and sum the costs up to that point
+                    if to_go_idx == 0 and len(scores) > 1:
+                        cost_sum = np.nan
+                    elif to_go_idx == 0 and len(scores) == 1:
+                        cost_sum = sum(x['cost'] for x in costs[:])
+                    else:
+                        cost_sum = sum(x['cost'] for x in costs[:to_go_idx])
 
-                cost_associated_with_score.append(cost_sum)
+                    cost_associated_with_score.append(cost_sum)
 
-            return cost_associated_with_score
-
+                return cost_associated_with_score
+            else:
+                raise ValueError(
+                    f'Unknown llm_config: {llm_config}. Please check the config.'
+                )
         msgs = outputs[0]['history']
         costs = outputs[0]['metrics']['costs']
         cost_associated_with_scores = compute_cost_per_score(
-            msgs, costs, scores[0], number_of_submissions=number_of_submissions
+            msgs, costs, scores[0], llm_config=llm_config
         )
+        if np.isnan(accumulated_cost):
+            breakpoint()
         res[str(folder)]['accumulated_cost'] = accumulated_cost
 
         current_dict = {
@@ -337,7 +371,13 @@ def main():
             use_max_budget = True
         else:
             use_max_budget = False
+        
+        # Convert Omegaconf to dict
+        del cfg['timestamp']
+        for key,value in cfg.items():
+            df[key] = value
 
+        #df['is_plotting_enabled'] = cfg['is_plotting_enabled']
         df['error'] = outputs[0]['error']
         df['use_max_budget'] = use_max_budget
         # Add contraints as column
@@ -348,10 +388,10 @@ def main():
         df['instance'] = instance
         df['folder'] = folder.name
         df['is_skelarn'] = is_sklearn
-        df['max_budget_per_task'] = cfg['max_budget_per_task']
-        df['solution_iterations'] = cfg['solution_iterations']
+        #df['max_budget_per_task'] = cfg['max_budget_per_task']
+        #df['solution_iterations'] = cfg['solution_iterations']
         df['seed'] = cfg['seed']
-        df['prompt_variation'] = cfg['prompt_variation']
+        #df['prompt_variation'] = cfg['prompt_variation']
         df['number_of_iterations'] = len(outputs[0]['history'])
         df['cumulative_number_of_completion_tokens'] = outputs[0]['metrics'][
             'accumulated_token_usage'
@@ -364,7 +404,7 @@ def main():
         )
         df['number_of_submissions'] = number_of_submissions
         df['final_accumulated_cost'] = accumulated_cost
-
+        
         # Convert folder.name to datetime
         # df["timestamp"] = datetime.strptime(folder.name.split("_")[0], "%Y-%m-%d")
         date_folder = folder.name.split('_')[0] + '_' + folder.name.split('_')[1]
@@ -408,12 +448,33 @@ def main():
             df['methods'] = gemini_response_question_3
         entries_df.append(df)
 
-    results_all = pd.concat(entries_df, ignore_index=True, axis=0).iloc[-40:]
-    breakpoint()
+    results_all = pd.concat(entries_df, ignore_index=True, axis=0).iloc[-150:]
+    results_all['is_read_csv_banned'].fillna(False, inplace=True)
+    # Keep only entries in the relevant tasks
+    results_all = results_all.loc[
+        results_all['instance'].isin(dataset)
+    ]
+
+    results_all['best_metric'] = results_all['metric'].apply(
+        lambda x: max(x) if len(x) > 0 else np.nan
+    )
+    # Drop all the errors STATUS$ERROR_LLM_SERVICE_UNAVAILABLE and  BadRequestError: litellm.BadRequestError: VertexAIException BadRequestError
+    to_drop_errors = [
+        'STATUS$ERROR_LLM_SERVICE_UNAVAILABLE',
+        'BadRequestError: litellm.BadRequestError: VertexAIException BadRequestError - {\n  "error": {\n    "code": 400,\n    "message": "* GenerateContentRequest.model: unexpected model name format\\n",\n    "status": "INVALID_ARGUMENT"\n  }\n}\n',
+    ]
+    results_all = results_all.loc[~results_all['error'].isin(to_drop_errors)]
+
+    claude_model = results_all.loc[results_all['llm_config'] == "open_router_claude"]
+
+    important_entries_claude = claude_model[["best_metric", "final_accumulated_cost", "error","instance","is_plotting_enabled","time","is_read_csv_banned"]]
+
+    gemini_model = results_all.loc[results_all['llm_config'] == "gemini_pro_pro"]
+    important_entries_gemini = gemini_model[["best_metric", "final_accumulated_cost", "error","instance","is_plotting_enabled","time","is_read_csv_banned"]]
     # Group by task
-    for instance, group_df in results_all.groupby('instance'):
-        # is_sklearn used?
-        is_sklearn = group_df['is_skelarn'].unique()[0]
+    for instance, group_df in important_entries_claude.groupby('instance'):
+        breakpoint()
+    
         
     results_all['best_metric'] = results_all['metric'].apply(
         lambda x: max(x) if len(x) > 0 else np.nan
