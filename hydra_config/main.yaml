@@ -17,7 +17,6 @@ cheating_attempt: False
 warm_against_cheating: False
 max_budget_per_task: 0
 prompt_variation: 0
-disable_numbers: False
 seed: 0
 show_solution_iterations: True
 show_max_budget_per_task: False
@@ -29,8 +28,13 @@ is_sklearn_banned: True
 max_iterations: 30
 temperature: 0
 top_p: 1
+disable_numbers: False
 is_plotting_enabled: True
-
+is_read_csv_banned: False
+give_structure_hint: False
+is_explaination_and_intepretation_included: false
+only_plots: false
+identifier_experiment: propotypying
 # Inject current date and time as YYYY-MM-DD_HH-MM-SS
 timestamp: ${now:%Y-%m-%d_%H-%M-%S}
 # timestamp: ${now:%Y-%m-%d}

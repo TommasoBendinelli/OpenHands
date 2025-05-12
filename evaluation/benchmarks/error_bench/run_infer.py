@@ -293,11 +293,11 @@ def process_instance(
             metadata_json = json.load(f)
         instruction = metadata_json[f"prompt_{cfg['prompt_variation']}"] + ' \n'
 
-        instruction += 'Your prediction should be based on a single explainable and deterministic hand-crafted feature that you have computed on the data, that paired with a decision classifier should be enough to solve the task.'
-        instruction += 'The time-series are located at /workspace/train.csv and /workspace/test.csv, the labels are located at /workspace/train_labels.csv. The test set labels are not available. \n'
-        instruction += 'Save your solution in engineered feature for the training set in /workspace/train_engineered_feature.csv and for the test set in /workspace/test_engineered_feature.csv. \n'
+        #instruction += 'Your prediction should be based on a single explainable and deterministic hand-crafted feature that you have computed on the data, that paired with a decision classifier should be enough to solve the task.'
+        instruction += 'The datasets are located at /workspace/train.csv and /workspace/test.csv, the labels are located at /workspace/train_labels.csv. The test set labels are not available. \n'
+        instruction += 'After computing your feature, save the engineered feature for the training set to /workspace/train_engineered_feature.csv and for the test set to /workspace/test_engineered_feature.csv. \n'
 
-        if cfg.hints > 0:
+        if cfg.give_structure_hint > 0:
             # Open the specific metadata file
             with open(
                 Path(
@@ -309,18 +309,20 @@ def process_instance(
             ) as f:
                 metadata_json = json.load(f)
 
-            instruction += f"HINT: {metadata_json['hint']} \n"
-            if cfg.hints == 2:
-                instruction += 'ADDITIONAL HINT, this is the only important feature!'
-
+            if metadata_json['is_time_series']:
+                instruction += 'The dataset is a time series dataset. You need to take into account the time series nature of the data. \n'
+            else:
+                instruction += 'The dataset is not a time series dataset'
         instruction += 'Your goal is to achieve an accuracy as high as possible in the test set. \n'
         if cfg.is_sklearn_banned:
             if cfg.is_plotting_enabled:
                 instruction += 'You can use only numpy, pandas and matplotlib.  NO OTHER LIBRARY IS ALLOWED. \n'
             else:
                 instruction += (
-                    'You can use only numpy and pandas. NO OTHER LIBRARY IS ALLOWED. \n'
+                    'You can use only numpy and pandas. You are not allowed to use any other library or generate plots.\n'
                 )
+        if cfg.is_read_csv_banned:
+            instruction += 'Additionally, you are not allowed to use the pandas read_csv function'
         # else:
         #     instruction = """You are an expert providing assistance the following dataset. Given the following dataset comprising time series, your task is to identify the features that separate two classes the most.
         #     """
@@ -365,13 +367,13 @@ def process_instance(
 
     if cfg.solution_iterations > 0:
         if cfg.show_solution_iterations:
-            instruction += f'To submit your hand-crafted summary feature you need to call python3 /mnt/compute_metric.py. If your solution is not good enough, you will get back a score. You can then improve your solution and submit it again. You have {cfg.solution_iterations} attempts to improve your solution. If your solution is good enough the task will be considered completed.\n'
+            instruction += f'To submit your hand-crafted summary feature you need to call python3 /mnt/compute_metric.py. If your solution is not good enough, you will get back a score. You can then improve your solution and submit it again. You have up to {cfg.solution_iterations} attempts to improve your solution. If your solution is good enough the task will be considered completed.\n'
         else:
             instruction += 'To submit your hand-crafted summary feature you need to call python3 /mnt/compute_metric.py.  If your solution is not good enough, you will get back a score. You can then improve your solution and submit it again. If your solution is good enough the episode will end. You have only a limited number of attempts to improve your solution.\n'
     else:
         instruction += 'You will not receive any feedback on your solution on the test set, so make sure you are confident about your solution before submitting it. \n'
 
-    if cfg.show_max_budget_per_task:
+    if cfg.show_max_budget_per_task: 
         instruction += f' You have a maximum of {cfg.max_budget_per_task} US Dollars to solve the task. \n'
 
     if cfg.include_constraints:
@@ -381,9 +383,9 @@ def process_instance(
         )
 
     if cfg.keep_going_until_succeed:
-        instruction += 'Keep trying improving your solution. Do not stop. \n'
+        instruction += 'Keep trying to improve your solution. Do not stop. \n'
     if cfg.show_solution_iterations:
-        instruction += f'You have {cfg.max_iterations} max interaction with the data to solve the task. \n'
+        instruction += f'You have up to {cfg.max_iterations} max interaction with the data to solve the task. \n'
 
     if cfg.warm_against_cheating:
         assert (
@@ -391,10 +393,14 @@ def process_instance(
         ), 'This option is only available when cheating is enabled'
         instruction += "You can't look at y_test.csv or any other file that contains the y ground truth. But you can look at test.csv.\n"
 
-    #     instruction += "You can't plot anything or use any plotting library.\n"
-    instruction += 'Whenever you are receiving a plot, please provide a description of what you see in the plot. The format should be encapsulated between <plot> </plot> and it should be be as detailed as possible. Details should include for instance the points or bars and where is located the legend. Provide me the colorcode of each element in the plot. THIS IS REALLY IMPORTANT. \n'
-    instruction += 'Plot as soon and as much as possible. \n'
+    if cfg.only_plots and cfg.is_plotting_enabled:
+        assert cfg.is_plotting_enabled, 'This option is only available when plotting is enabled'
+        instruction += "In order to solve the task, you can only use plots. You can't print anything, you can only only render plots. \n"
 
+    if cfg.is_explaination_and_intepretation_included:
+        instruction += 'At each step, explain your motivation for the code you are writing and an interpretation of the results you are seeing. Put it between <motivation> and </motivation>  and <interpretation> and </interpretation> tags. \n'
+    if cfg.disable_numbers:
+        instruction += 'You are not allowed to use visualize raw values of the data, so commands such df.head() or opening directly the dataset are not allowed. \n'
     if cfg.sid:
         sid = cfg.sid
     else:
@@ -649,7 +655,6 @@ def main(cfg):
         content = f.read()
 
     safe_append(path=target_path, text=content)
-    breakpoint()
     # Open the output file and read the sid
     kill_instance(output_file)
 

@@ -35,7 +35,7 @@ from openhands.runtime.plugins import (
     PluginRequirement,
 )
 from openhands.utils.prompt import PromptManager
-
+from functools import partial
 
 class ErrorAgent(Agent):
     VERSION = '2.2'
@@ -93,7 +93,7 @@ class ErrorAgent(Agent):
         logger.debug(f'Using condenser: {type(self.condenser)}')
         
 
-        self.response_to_actions_fn = codeact_function_calling.response_to_actions
+        self.response_to_actions_fn = partial(codeact_function_calling.response_to_actions,cfg=self.cfg)
 
     def _get_tools(self) -> list[ChatCompletionToolParam]:
         # For these models, we use short tool descriptions ( < 1024 tokens)
@@ -266,44 +266,63 @@ class ErrorAgent(Agent):
 
         # Remove anything that is more than contains more than 100 digits in a row
 
-        if True:
-            import re
-            filtered = []
-            long_digits_pattern = re.compile(r"(?:\d+)(?:,\d+){40,}")
-            
-            # block_pattern = re.compile(r"""
-            #     (?ms)                       # multiline & dot-all
-            #     ^\s*                        # optional leading spaces
-            #     \d+                         # first column number
-            #     (?:\s{2,}\d+)+              # at least one more “␣␣digits” (so ≥2 columns)
-            #     \s*\\\n                     # wide spaces + backslash + newline
-            #     .*?                         # lazily consume all lines
-            #     \[\d+\s+rows\s+x\s+\d+\s+columns\]  # the “[5 rows x 1002 columns]” line
-            #     """, re.VERBOSE)
-
-            # last_msg = params['messages'][-1]['content'][0]['text']
-            # print(last_msg)
-            # breakpoint()
-            # print(f"Last message: {last_msg}")
-            # breakpoint()
-          
-        if False:
-            for message in params['messages']:
-                text = message.get('content', '')[0]["text"]
-                # If the text contains 100 or more consecutive digits, replace it with "Result not available"
-                if long_digits_pattern.search(text):
-                    # Replace the message with a placeholder
-                    message['content'][0]['text'] = "Raw numbers of the dataset not available"
+       
+        if self.cfg.disable_numbers:
+            # Get the data if not already there
+            if not "numberical_values" in dir(self):
+                # Get the data file 
+                import pandas as pd
                 
-                # if "0.344435  1.548645" in text:
+                # Open the file
+                df = pd.read_csv(f"evaluation/benchmarks/error_bench/tasks/{self.cfg.class_type}/{self.cfg.instance}/train.csv")
+                # Extract all the the numbers of the first five rows and convert them to a string
+                
+                self.numberical_values = df.values.flatten()[:1000].tolist()
+            
+            for message in params['messages']:
+                if "gemini" in self.cfg.llm_config:
+                    text = message.get('content', '')[0]["text"]
+                elif "claude" in self.cfg.llm_config:
+                    text = message["content"]
+                else:
+                    raise ValueError("Unsupported LLM config")
+                # text = message.get('content', '')[0]["text"]
+                counter = 0
+                # Check if the text contains 4 or more consecutive digits
+                for num in self.numberical_values:
+                    
+                    if str(num)[:5] in text:
+                        counter += 1
+
+                    if counter > 20:
+                        if "gemini" in self.cfg.llm_config:
+                            # Replace the message with a placeholder
+                            message['content'][0]['text'] = "Raw numbers of the dataset not available. Report this error to the user and keep going."
+                        elif "claude" in self.cfg.llm_config:
+                            # Replace the message with a placeholder
+                            message['content'] = "Raw numbers of the dataset not available. Report this error to the and keep going."
+                        # Replace the message with a placeholder
+                        # message['content'][0]['text'] = "Raw numbers of the dataset not available. Report this to the user and keep going."
+                        break
+                # If the text contains 4 or more consecutive digits, replace it with "Result not available"
+                # if counter > 4:
+
+
+
+                # # If the text contains 100 or more consecutive digits, replace it with "Result not available"
+                # if long_digits_pattern.search(text):
                 #     # Replace the message with a placeholder
                 #     message['content'][0]['text'] = "Raw numbers of the dataset not available"
+                
+                # # if "0.344435  1.548645" in text:
+                # #     # Replace the message with a placeholder
+                # #     message['content'][0]['text'] = "Raw numbers of the dataset not available"
                     
-                filtered.append(message)
-                # If there are more than 100 digits in a row, remove the message
-                #if (
+                # filtered.append(message)
+                # # If there are more than 100 digits in a row, remove the message
+                # #if (
 
-                # message['content'][0]['text']
+                # # message['content'][0]['text']
         # Go over the messages and if there is any with more  tokens, don't visualize it
 
         # Load all the images 
@@ -329,7 +348,7 @@ class ErrorAgent(Agent):
             for idx, message in enumerate(params["messages"]):
                 rebuilt = [] 
                                                 # rebuild this message’s content
-                if isinstance(message["content"], list) and  self.cfg.llm_config == "gemini_lite":
+                if isinstance(message["content"], list) and  ("gemini" in self.cfg.llm_config or "gpt" in self.cfg.llm_config):
                     for part in message["content"]:
                         if (
                             part.get("type") == "text"
@@ -356,7 +375,7 @@ class ErrorAgent(Agent):
                             rebuilt.append(part)                    # unchanged part
                     message["content"] = rebuilt   
                     
-                elif isinstance(message, dict):
+                elif isinstance(message, dict) and "claude" in self.cfg.llm_config:
                     if (
                             "content" in message and "already displayed to user" in message["content"]
                         ):
@@ -394,7 +413,8 @@ class ErrorAgent(Agent):
                                 # })
                             params["messages"][idx] = {"content": rebuilt, "role": message["role"]}  # put rebuilt list back
                             # ← put rebuilt list back
-                
+                else:
+                    raise ValueError("Unsupported LLM config")
             # clone *after* the edits so the two dicts differ only by this change
             new_msx = copy.deepcopy(params)
         else:

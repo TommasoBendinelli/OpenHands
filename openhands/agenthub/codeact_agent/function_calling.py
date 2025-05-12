@@ -53,11 +53,12 @@ def combine_thought(action: Action, thought: str) -> Action:
     return action
 
 
-def response_to_actions(response: ModelResponse) -> list[Action]:
+def response_to_actions(response: ModelResponse, cfg=None) -> list[Action]:
     actions: list[Action] = []
     assert len(response.choices) == 1, 'Only one choice is supported for now'
     choice = response.choices[0]
     assistant_msg = choice.message
+    
     if hasattr(assistant_msg, 'tool_calls') and assistant_msg.tool_calls:
         # Check if there's assistant_msg.content. If so, add it to the thought
         thought = ''
@@ -99,15 +100,21 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     raise FunctionCallValidationError(
                         f'Missing required argument "code" in tool call {tool_call.function.name}'
                     )
-       
-                # Check if sklearn is in the code
-                if 'import sklearn' in arguments['code']:
-                    # Then inject a raise Exception at the beginning of the code"
-                    arguments['code'] = "raise Exception('sklearn is disabled!')\n" 
+                if cfg.is_sklearn_banned:
+                    # Check if sklearn is in the code
+                    if 'import sklearn' in arguments['code']:
+                        # Then inject a raise Exception at the beginning of the code"
+                        arguments['code'] = "raise Exception('sklearn is disabled!')\n" 
 
-                if "from sklearn" in arguments['code']:
-                    # Then inject a raise Exception at the beginning of the code"
-                    arguments['code'] = "raise Exception('sklearn is disabled!')\n"
+                    if "from sklearn" in arguments['code']:
+                        # Then inject a raise Exception at the beginning of the code"
+                        arguments['code'] = "raise Exception('sklearn is disabled!')\n"
+
+                if cfg.is_read_csv_banned:
+                    # Check if read_csv is in the code
+                    if 'pd.read_csv' in arguments['code']:
+                        # Then inject a raise Exception at the beginning of the code"
+                        arguments['code'] = "raise Exception('you are not allowed to use pd.read_csv!')\n"
 
                 action = IPythonRunCellAction(code=arguments['code'])
             elif tool_call.function.name == 'delegate_to_browsing_agent':

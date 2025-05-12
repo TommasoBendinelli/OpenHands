@@ -203,7 +203,7 @@ def get_folders_in_range(
 
 # Get all the entries evaluation/evaluation_outputs/outputs
 ROOT_DIR = Path('evaluation/evaluation_outputs/outputs')
-AFTER = datetime.strptime('2025-05-11_01-00-00', '%Y-%m-%d_%H-%M-%S')
+AFTER = datetime.strptime('2025-05-12_00-00-00', '%Y-%m-%d_%H-%M-%S')
 BEFORE = None  # datetime.strptime('2025-05-06_11-47-22', '%Y-%m-%d_%H-%M-%S')
 # AFTER = None
 # BEFORE = None
@@ -221,6 +221,12 @@ dataset =[
     'row_variance','phase_aligment','simultanus_spike','channel_corr','outlier_ratio','channel_divergence','variance_burst','interaction_sign','ground_mean_threashold','dominant_feature','common_frequency','predict_ts_stationarity','zero_crossing','sum_threshold','spike_presence','cofounded_group_outlier','find_peaks','row_max_abs','periodic_presence'
 ]
 
+time_series_datasets = [
+    "simultanus_spike","variance_burst","zero_crossing","predict_ts_stationarity"
+]
+
+tabular_datasets = ["sum_threshold"]
+
 
 def main():
     runs = sorted(get_folders_in_range(ROOT_DIR, AFTER, BEFORE))
@@ -235,9 +241,9 @@ def main():
         if not outputs:
             continue
 
-        if len(outputs[0]['history']) < 5:
-            print(f'Not enough history for {folder}')
-            continue
+        # if len(outputs[0]['history']) < 5:
+        #     print(f'Not enough history for {folder}')
+        #     continue
 
         messages = '\n'.join([x['message'] for x in outputs[0]['history'][2:]])
         # Remove sklearn.metrics from the messages
@@ -450,6 +456,15 @@ def main():
 
     results_all = pd.concat(entries_df, ignore_index=True, axis=0).iloc[-150:]
     results_all['is_read_csv_banned'].fillna(False, inplace=True)
+    results_all['results_got_right_at_first'] = 0
+    results_all['results_got_right_at_first'] = results_all.apply(
+        lambda x: 1 if x['perfect_accuracy'] == 1 and x['number_of_submissions'] == 1 else 0,
+        axis=1
+    )
+    results_all['is_time_series_task'] = results_all['instance'].apply(
+        lambda x: 1 if x in time_series_datasets else 0
+    )
+
     # Keep only entries in the relevant tasks
     results_all = results_all.loc[
         results_all['instance'].isin(dataset)
@@ -469,13 +484,220 @@ def main():
 
     important_entries_claude = claude_model[["best_metric", "final_accumulated_cost", "error","instance","is_plotting_enabled","time","is_read_csv_banned"]]
 
-    gemini_model = results_all.loc[results_all['llm_config'] == "gemini_pro_pro"]
-    important_entries_gemini = gemini_model[["best_metric", "final_accumulated_cost", "error","instance","is_plotting_enabled","time","is_read_csv_banned"]]
-    # Group by task
-    for instance, group_df in important_entries_claude.groupby('instance'):
-        breakpoint()
+    # Sort by instance
+    important_entries_claude = important_entries_claude.sort_values(
+        by=['instance'])
+    gemini_model = results_all.loc[results_all['llm_config'].isin(["gemini_pro","gemini_pro_pro","gemini_lite"])] # Important from 2025-05-12 01:00:23 to 2025-05-12 01:43:54
+    before_indetifier_idea = gemini_model.loc[
+        (gemini_model['time'] > datetime.strptime('2025-05-12 01:00:15', '%Y-%m-%d %H:%M:%S')) & (gemini_model['time'] < datetime.strptime('2025-05-12 14:10:54', '%Y-%m-%d %H:%M:%S'))
+    ]
+     # Remove any entry where number is disabled
+    before_indetifier_idea = before_indetifier_idea.loc[gemini_model['disable_numbers'] == False] 
+
+
+    # Get also the runs with the idenfifier
+    
+    other_runs = results_all.loc[results_all["identifier_experiment"] == "paper"]
+
+    # Concat this two
+    df = pd.concat([before_indetifier_idea, other_runs], ignore_index=True, axis=0)
+
+    # important_entries_gemini = gemini_model[["best_metric", "final_accumulated_cost", "error","instance","is_plotting_enabled","time","is_read_csv_banned","give_structure_hint","number_of_submissions","results_got_right_at_first","is_time_series_task","perfect_accuracy","llm_config","metric"]]
+
+
+
+    # TABLE 1
+ 
+    def table_1(df: pd.DataFrame) -> str:
+        """
+        Build the LaTeX table for Section “Agents are not able to explore effectively”.
+
+        Mapping shown in the paper:
+            gemini_pro      → Gemini Flash 2.5
+            gemini_pro_pro  → Gemini Pro 2.5
+            gemini_lite     → Gemini Lite 2.5
+        """
+        # -------------------------------------------------------------------------
+        # 1. Aggregate: mean perfect-accuracy for every model / task combination
+        # -------------------------------------------------------------------------
+        df = df.loc[~df["give_structure_hint"]]    # drop rows that used structure hints
+        groups = df.groupby(
+            ['is_plotting_enabled', 'is_time_series_task', 'llm_config', 'give_structure_hint']
+        )
+        table1_df = []
+        for name, group_df in groups:
+            mean = group_df['perfect_accuracy'].fillna(0).mean()
+            number_of_rows = len(group_df)
+            table1_df.append(
+                {
+                    'is_plotting_enabled': name[0],
+                    'is_time_series_task': name[1],
+                    'llm_config': name[2],
+                    'mean_perfect_accuracy': mean,
+                    'number_of_submissions': group_df['number_of_submissions'].mean(),
+                    'count': number_of_rows,
+                    'metrics': group_df['metric'].tolist()
+                    }
+            )
+
+        table1_df = pd.DataFrame(table1_df) 
+        
+        agg = (
+            df.groupby(
+                ["llm_config", "is_time_series_task", "is_plotting_enabled"]
+            )["perfect_accuracy"]
+            .mean()
+            .unstack(["is_time_series_task", "is_plotting_enabled"])
+        )
+
+        # Desired column order: (time-series, plots) … (tabular, no-plots)
+        COLS = [(1, True), (1, False), (0, True), (0, False)]
+        for col in COLS:          # ensure all four columns exist
+            if col not in agg.columns:
+                agg[col] = np.nan
+        agg = agg[COLS]           # reorder
+
+        # -------------------------------------------------------------------------
+        # 2. Pretty names & percentage formatting
+        # -------------------------------------------------------------------------
+        name_map = {
+            "gemini_pro":      "Gemini Flash 2.5",
+            "gemini_pro_pro":  "Gemini Pro 2.5",
+            "gemini_lite":     "Gemini Lite 2.5",
+        }
+
+        def fmt(x: float | np.floating | float) -> str:
+            """Int-percent with trailing ‘%’, or en-dash if NaN."""
+            return "--" if pd.isna(x) else f"{int(round(100 * x))}\\%"
+
+        # -------------------------------------------------------------------------
+        # 3. Assemble LaTeX
+        # -------------------------------------------------------------------------
+        header = r"""
+            \subsection{Agents are not able to explore effectively}
+            \begin{table}[ht]
+                \centering
+                \caption{Agents do not leverage privileged information nor explore effectively}
+                \label{tab:agent-results-all}
+                \begin{tabular}{@{}lcccc@{}}
+                    \toprule
+                    & \multicolumn{2}{c}{\textbf{Time-Series Structure}} & \multicolumn{2}{c}{\textbf{Tabular Structure}} \\
+                    \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+                    \textbf{Model} & \textbf{Plots Enabled} & \textbf{No Plots} & \textbf{Plots Enabled} & \textbf{No Plots} \\
+                    \midrule
+            """.lstrip("\n")
+
+        rows = "\n".join(
+            f"        {name_map[m]} & "
+            + " & ".join(fmt(agg.loc[m, col]) for col in COLS)
+            + r" \\"
+            for m in name_map
+            if m in agg.index            # keep only models present in the data
+        )
+
+        footer = r"""
+            o3               & -- & -- & -- & -- \\
+            Sonnet 3.7       & -- & -- & -- & -- \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+    """.lstrip("\n")
+        return header + rows + "\n" + footer
+
+    # ----------------------------------------------------------------------
+    # Example usage
+    entry = table_1(df)
+    # print(entry)
     
         
+
+
+    def table_2(df: pd.DataFrame) -> str:
+        """
+        Return the LaTeX table for “Agents are not able to explore effectively”.
+
+        • “Baseline” = give_structure_hint == False
+        • “Structure hint” = give_structure_hint == True
+        • “Constraint” is not available yet → show “--”
+        """
+
+        import pandas as pd
+        from typing import List
+
+        # ------------------------------------------------------------------ #
+        # 1. Pivot the data: rows = model, columns = (is_time_series_task, give_structure_hint)
+        pivot = (
+            df.groupby(["llm_config", "is_time_series_task", "give_structure_hint"])
+            ["perfect_accuracy"]
+            .mean()
+            .unstack(level=["is_time_series_task", "give_structure_hint"])
+        )
+
+        # ------------------------------------------------------------------ #
+        # 2. Row/column bookkeeping
+        MODELS: List[str] = ["gemini_pro", "gemini_pro_pro"]
+        NAME_MAP = {
+            "gemini_pro":     "Gemini Flash 2.5",
+            "gemini_pro_pro": "Gemini Pro 2.5",
+        }
+
+        # Only two values from the pivot: (ts, False/True) and (tab, False/True)
+        COLS = [
+            (1, False), (1, True),  "MISSING",  # TS
+            (0, False), (0, True),  "MISSING",  # TAB
+        ]
+
+        def fmt(x):
+            return "--" if pd.isna(x) else f"{int(round(100 * x))}\\%"
+
+        # ------------------------------------------------------------------ #
+        # 3. Build LaTeX
+        header = r"""
+    \begin{table}[ht]
+        \centering
+        \label{tab:agent-results-all}
+        \begin{tabular}{@{}lcccccc@{}}
+            \toprule
+            & \multicolumn{3}{c}{\textbf{Time-series structure}}
+            & \multicolumn{3}{c}{\textbf{Tabular structure}} \\
+            \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+            \textbf{Model} & \textbf{Baseline} & \textbf{Structure hint} & \textbf{Constraint}
+                        & \textbf{Baseline} & \textbf{Structure hint} & \textbf{Constraint} \\
+            \midrule
+        """.lstrip("\n")
+
+        rows = []
+        for m in MODELS:
+            vals = []
+            for c in COLS:
+                if c == "MISSING":
+                    vals.append("--")
+                else:
+                    vals.append(
+                        fmt(pivot.loc[m, c] if (m in pivot.index and c in pivot.columns) else float("nan"))
+                    )
+            rows.append(f"        {NAME_MAP[m]:<17} & " + " & ".join(vals) + r" \\")
+
+        # Placeholder rows
+        placeholder = "-- & -- & -- & -- & -- & -- \\\\"
+        rows.append(f"        o3{' ' * 15} & {placeholder}")
+        rows.append(f"        Sonnet 3.7{' ' * 6} & {placeholder}")
+
+        footer = r"""
+            \bottomrule
+        \end{tabular}
+        \caption{Agents do not leverage privileged information nor explore effectively.}
+    \end{table}
+    """.lstrip("\n")
+
+        return header + "\n".join(rows) + "\n" + footer
+
+
+    # ----------------------------------------------------------------------
+    # Example usage
+    entry = table_2(df)
+    print(entry)
+   
     results_all['best_metric'] = results_all['metric'].apply(
         lambda x: max(x) if len(x) > 0 else np.nan
     )
@@ -520,135 +742,135 @@ def main():
     )
     print(results_005_all)
 
-    tasks = sorted(results_all['instance'].unique())
-    NAN_OPT = '-1'  # -1, drop
+    # tasks = sorted(results_all['instance'].unique())
+    # NAN_OPT = '-1'  # -1, drop
 
-    # Run the hypothesis test about different prompts
-    for task in tasks:
-        group_50 = {}
-        task_df = results_005[results_005['instance'] == task]
-        # grouped = task_df.groupby('prompt_variation')
+    # # Run the hypothesis test about different prompts
+    # for task in tasks:
+    #     group_50 = {}
+    #     task_df = results_005[results_005['instance'] == task]
+    #     # grouped = task_df.groupby('prompt_variation')
 
-        groups_df = []
-        short_look = {}
-        for idx, group_df in task_df.groupby('prompt_variation'):
-            # print(group_df)
-            # Drop nan
-            group_df = clean_metrics(group_df, NAN_OPT)
+    #     groups_df = []
+    #     short_look = {}
+    #     for idx, group_df in task_df.groupby('prompt_variation'):
+    #         # print(group_df)
+    #         # Drop nan
+    #         group_df = clean_metrics(group_df, NAN_OPT)
 
-            groups_df.append(group_df['metric'].reset_index(drop=True))
-            short_look[idx] = {
-                'mean': group_df['metric'].mean(),
-                'std': group_df['metric'].std(),
-            }
+    #         groups_df.append(group_df['metric'].reset_index(drop=True))
+    #         short_look[idx] = {
+    #             'mean': group_df['metric'].mean(),
+    #             'std': group_df['metric'].std(),
+    #         }
 
-            group_50[idx] = group_df['metric'].reset_index(drop=True)
-        # short_look_df = pd.DataFrame.from_dict(short_look, orient='index')
-        # print(short_look_df)
-        pd.concat(group_50, axis=1).to_csv(
-            Path('end_results') / f'005_prompts_variations_{task}.csv', index=False
-        )
+    #         group_50[idx] = group_df['metric'].reset_index(drop=True)
+    #     # short_look_df = pd.DataFrame.from_dict(short_look, orient='index')
+    #     # print(short_look_df)
+    #     pd.concat(group_50, axis=1).to_csv(
+    #         Path('end_results') / f'005_prompts_variations_{task}.csv', index=False
+    #     )
 
-        # Build a long-form DataFrame
-        values = np.concatenate([x.values for x in groups_df])
-        labels = np.concatenate(
-            [[f'G{i}' for _ in grp] for i, grp in enumerate(groups_df)]
-        )
-        df = pd.DataFrame({'value': values, 'group': labels})
-        if len(df) < 2:
-            print(f'Not enough data for {task}')
-            continue
-        # Run Tukey HSD
-        tukey = pairwise_tukeyhsd(df['value'], df['group'])
-        print(tukey.summary())
-        # One-way ANOVA
+    #     # Build a long-form DataFrame
+    #     values = np.concatenate([x.values for x in groups_df])
+    #     labels = np.concatenate(
+    #         [[f'G{i}' for _ in grp] for i, grp in enumerate(groups_df)]
+    #     )
+    #     df = pd.DataFrame({'value': values, 'group': labels})
+    #     if len(df) < 2:
+    #         print(f'Not enough data for {task}')
+    #         continue
+    #     # Run Tukey HSD
+    #     tukey = pairwise_tukeyhsd(df['value'], df['group'])
+    #     print(tukey.summary())
+    #     # One-way ANOVA
 
-        F_stat, p_value = stats.f_oneway(*groups_df)
-        print(f'F = {F_stat:.3f}, p = {p_value:.4f}')
-        # breakpoint()
+    #     F_stat, p_value = stats.f_oneway(*groups_df)
+    #     print(f'F = {F_stat:.3f}, p = {p_value:.4f}')
+    #     # breakpoint()
 
-    def compute_best_run_per_seed(task_df: pd.DataFrame, task: str) -> pd.DataFrame:
-        # Assert that the budget should be 0.05
-        assert (
-            task_df['max_budget_per_task'].unique()[0] == 0.05
-        ), 'Budget should be 0.05 for all'
-        res = []
-        for idx, group_df in task_df.groupby('seed'):
-            # Compute mean and std
+    # def compute_best_run_per_seed(task_df: pd.DataFrame, task: str) -> pd.DataFrame:
+    #     # Assert that the budget should be 0.05
+    #     assert (
+    #         task_df['max_budget_per_task'].unique()[0] == 0.05
+    #     ), 'Budget should be 0.05 for all'
+    #     res = []
+    #     for idx, group_df in task_df.groupby('seed'):
+    #         # Compute mean and std
 
-            group_df = clean_metrics(group_df, NAN_OPT)
-            # Compute metric and accumulated cost
+    #         group_df = clean_metrics(group_df, NAN_OPT)
+    #         # Compute metric and accumulated cost
 
-            best_result_seed = group_df['metric'].max()
-            sum_compute_result = group_df['final_accumulated_cost'].sum()
-            df_tmp = pd.DataFrame(
-                {
-                    'metric': best_result_seed,
-                    'final_accumulated_cost': sum_compute_result,
-                },
-                index=[0],
-            )
-            res.append(df_tmp)
+    #         best_result_seed = group_df['metric'].max()
+    #         sum_compute_result = group_df['final_accumulated_cost'].sum()
+    #         df_tmp = pd.DataFrame(
+    #             {
+    #                 'metric': best_result_seed,
+    #                 'final_accumulated_cost': sum_compute_result,
+    #             },
+    #             index=[0],
+    #         )
+    #         res.append(df_tmp)
 
-        return pd.concat(res, axis=0, ignore_index=True)
+    #     return pd.concat(res, axis=0, ignore_index=True)
 
-    # Run the hypothesis about poor exploration
-    result_005 = {}
-    for task in tasks:
-        # Get final accuracy
-        results_per_seeds = compute_best_run_per_seed(
-            results_005[results_005['instance'] == task], task
-        )
-        mean_result = results_per_seeds.mean()
-        std_result = results_per_seeds.std()
-        result_005[task] = {
-            'mean': mean_result['metric'],
-            'std': std_result['metric'],
-            'mean_cost': mean_result['final_accumulated_cost'],
-            'std_cost': std_result['final_accumulated_cost'],
-        }
-    result_005_df = pd.DataFrame.from_dict(result_005, orient='index')
-    # Save the results
-    # result_005_df.to_csv(Path("end_results") / "005_results.csv")
-    print(result_005_df)
-    # Get the 05 experiments after 2025-05-06 18:00:00
-    result_005_df = results_005.loc[
-        (
-            results_005['time']
-            > datetime.strptime('2025-05-07 13:00:00', '%Y-%m-%d %H:%M:%S')
-        )
-    ]
-    results_05 = results_05.loc[
-        results_05['time']
-        > datetime.strptime('2025-05-08 12:01:20', '%Y-%m-%d %H:%M:%S')
-    ]
-    # Budge should below 10
-    print(results_05)
-    results_05 = results_05.loc[results_05['number_of_submissions'] < 11]
-    # Group by instance
-    res_05 = {}
-    for task, df_task in results_05.groupby('instance'):
-        # Compute mean metric and std and accumulated cost
-        df_task = clean_metrics(df_task, NAN_OPT)
-        mean_result = df_task['metric'].mean()
-        std_result = df_task['metric'].std()
-        mean_cost = df_task['final_accumulated_cost'].mean()
-        std_cost = df_task['final_accumulated_cost'].std()
-        # Get the 25% and 75% quantile
-        # q1 = df_task['metric'].quantile(0.25)
-        # q3 = df_task['metric'].quantile(0.75)
-        res_05[task] = {
-            'mean': mean_result,
-            'std': std_result,
-            'mean_cost': mean_cost,
-            'std_cost': std_cost,
-        }
+    # # Run the hypothesis about poor exploration
+    # result_005 = {}
+    # for task in tasks:
+    #     # Get final accuracy
+    #     results_per_seeds = compute_best_run_per_seed(
+    #         results_005[results_005['instance'] == task], task
+    #     )
+    #     mean_result = results_per_seeds.mean()
+    #     std_result = results_per_seeds.std()
+    #     result_005[task] = {
+    #         'mean': mean_result['metric'],
+    #         'std': std_result['metric'],
+    #         'mean_cost': mean_result['final_accumulated_cost'],
+    #         'std_cost': std_result['final_accumulated_cost'],
+    #     }
+    # result_005_df = pd.DataFrame.from_dict(result_005, orient='index')
+    # # Save the results
+    # # result_005_df.to_csv(Path("end_results") / "005_results.csv")
+    # print(result_005_df)
+    # # Get the 05 experiments after 2025-05-06 18:00:00
+    # result_005_df = results_005.loc[
+    #     (
+    #         results_005['time']
+    #         > datetime.strptime('2025-05-07 13:00:00', '%Y-%m-%d %H:%M:%S')
+    #     )
+    # ]
+    # results_05 = results_05.loc[
+    #     results_05['time']
+    #     > datetime.strptime('2025-05-08 12:01:20', '%Y-%m-%d %H:%M:%S')
+    # ]
+    # # Budge should below 10
+    # print(results_05)
+    # results_05 = results_05.loc[results_05['number_of_submissions'] < 11]
+    # # Group by instance
+    # res_05 = {}
+    # for task, df_task in results_05.groupby('instance'):
+    #     # Compute mean metric and std and accumulated cost
+    #     df_task = clean_metrics(df_task, NAN_OPT)
+    #     mean_result = df_task['metric'].mean()
+    #     std_result = df_task['metric'].std()
+    #     mean_cost = df_task['final_accumulated_cost'].mean()
+    #     std_cost = df_task['final_accumulated_cost'].std()
+    #     # Get the 25% and 75% quantile
+    #     # q1 = df_task['metric'].quantile(0.25)
+    #     # q3 = df_task['metric'].quantile(0.75)
+    #     res_05[task] = {
+    #         'mean': mean_result,
+    #         'std': std_result,
+    #         'mean_cost': mean_cost,
+    #         'std_cost': std_cost,
+    #     }
 
-    result_05_df = pd.DataFrame.from_dict(res_05, orient='index')
-    print(result_05_df)
-    # Save these results
-    result_05_df.to_csv(Path('end_results') / '05_results.csv')
-    result_005_df.to_csv(Path('end_results') / '005_results.csv')
+    # result_05_df = pd.DataFrame.from_dict(res_05, orient='index')
+    # print(result_05_df)
+    # # Save these results
+    # result_05_df.to_csv(Path('end_results') / '05_results.csv')
+    # result_005_df.to_csv(Path('end_results') / '005_results.csv')
 
 
 if __name__ == '__main__':

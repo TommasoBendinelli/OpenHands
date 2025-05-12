@@ -321,7 +321,6 @@ class LLM(RetryMixin, DebugMixin):
                         raise ValueError("Type is either str or list") 
                 
                 
-            breakpoint()
             # Calculate and record latency
             latency = time.time() - start_time
             response_id = resp.get('id', 'unknown')
