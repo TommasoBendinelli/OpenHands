@@ -1,21 +1,21 @@
-instance=channel_corr,channel_divergence,cofounded_group_outlier,common_frequency,dominant_feature,find_peaks,ground_mean_threashold,outlier_ratio,periodic_presence,predict_ts_stationarity,row_max_abs,row_variance,set_points,sign_rotated_generator,simultanus_spike,spike_presence,sum_threshold,variance_burst,zero_crossing
+#!/usr/bin/env bash
+# Exit immediately if a command fails and treat unset vars as errors
 
-# 5*19*4 USD
-models=gemini_pro_pro #open_router_claudero #,gemini_pro,open_router_claude #,deepseek,gpt-o4-mini
+# instance="row_variance"
+# models=
 
-# BASELINE
 
-python evaluation/benchmarks/error_bench/run_infer.py \
+python -m pdb evaluation/benchmarks/error_bench/run_infer.py \
   number_of_experiments=1 \
   eval_n_limit=1 \
   class_type=explorative_data_analysis \
-  instance=$instance \
+  instance="row_variance" \
   constraints=0 \
-  llm_config=$models \
+  llm_config="gemini_pro" \
   solution_iterations=5 \
   cheating_attempt=False \
   warm_against_cheating=False \
-  max_budget_per_task=1 \
+  max_budget_per_task=0.2 \
   prompt_variation=0 \
   seed=20 \
   keep_going_until_succeed=True \
@@ -24,34 +24,51 @@ python evaluation/benchmarks/error_bench/run_infer.py \
   give_structure_hint=False \
   disable_numbers=False \
   is_read_csv_banned=False \
-  identifier_experiment="baseline" \
-  -m
+  identifier_experiment="baseline"
 
-
-
-# python evaluation/benchmarks/error_bench/run_infer.py \
+# Repeat 5 times
+for i in {1..5}; do
+  python evaluation/benchmarks/error_bench/run_infer.py \
+    number_of_experiments=1 \
+    eval_n_limit=1 \
+    class_type=explorative_data_analysis \
+    instance="$instance" \
+    constraints=0 \
+    llm_config="$models" \
+    solution_iterations=5 \
+    cheating_attempt=False \
+    warm_against_cheating=False \
+    max_budget_per_task=0.2 \
+    prompt_variation=0 \
+    seed=20 \
+    keep_going_until_succeed=True \
+    native_tool_calling=False \
+    is_plotting_enabled=True,False \
+    give_structure_hint=False \
+    disable_numbers=False \
+    is_read_csv_banned=False \
+    identifier_experiment="baseline" \
+    -m
+done
 #   number_of_experiments=1 \
 #   eval_n_limit=1 \
 #   class_type=explorative_data_analysis \
-#   instance=$instance \
+#   instance=channel_corr \
 #   constraints=0 \
-#   llm_config=$models \
+#   llm_config=gpt-o4-mini \
 #   solution_iterations=5 \
 #   cheating_attempt=False \
 #   warm_against_cheating=False \
-#   max_budget_per_task=1 \
+#   max_budget_per_task=0.5 \
 #   prompt_variation=0 \
 #   seed=20 \
 #   keep_going_until_succeed=True \
-#   native_tool_calling=True \
+#   native_tool_calling=False \
 #   is_plotting_enabled=True \
 #   give_structure_hint=False \
-#   disable_numbers=False \
+#   disable_numbers=True \
 #   is_read_csv_banned=False \
-#   identifier_experiment="baseline_native_tool_calling" \
-#   -m
-
-
+#   identifier_experiment="baseline" 
 
 
 # # PLOT DISABLED
@@ -100,25 +117,25 @@ python evaluation/benchmarks/error_bench/run_infer.py \
 
 # # CONTRAINTS VS NO CONSTRAINTS
 
-python evaluation/benchmarks/error_bench/run_infer.py \
-  number_of_experiments=1 \
-  eval_n_limit=1 \
-  class_type=explorative_data_analysis \
-  instance=$instance \
-  constraints=0 \
-  llm_config=$models \
-  solution_iterations=5 \
-  cheating_attempt=False \
-  warm_against_cheating=False \
-  max_budget_per_task=1 \
-  prompt_variation=0 \
-  seed=20 \
-  keep_going_until_succeed=True \
-  native_tool_calling=False \
-  is_plotting_enabled=True \
-  give_structure_hint=False \
-  disable_numbers=False \
-  is_read_csv_banned=True \
-  identifier_experiment="constraint" \
-  -m
+# python evaluation/benchmarks/error_bench/run_infer.py \
+#   number_of_experiments=1 \
+#   eval_n_limit=1 \
+#   class_type=explorative_data_analysis \
+#   instance=$instance \
+#   constraints=0 \
+#   llm_config=$models \
+#   solution_iterations=5 \
+#   cheating_attempt=False \
+#   warm_against_cheating=False \
+#   max_budget_per_task=1 \
+#   prompt_variation=0 \
+#   seed=20 \
+#   keep_going_until_succeed=True \
+#   native_tool_calling=False \
+#   is_plotting_enabled=True \
+#   give_structure_hint=False \
+#   disable_numbers=False \
+#   is_read_csv_banned=True \
+#   identifier_experiment="constraint" \
+#   -m
 

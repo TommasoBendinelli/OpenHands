@@ -23,9 +23,9 @@ show_max_budget_per_task: False
 keep_going_until_succeed: False
 include_constraints: False
 native_tool_calling: True
-instruction_constraint: '' 
+instruction_constraint: ''
 is_sklearn_banned: True
-max_iterations: 30
+max_iterations: 100
 temperature: 0
 top_p: 1
 disable_numbers: False

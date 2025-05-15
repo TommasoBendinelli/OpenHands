@@ -1,2 +1,2 @@
-{    "prompt_0": "As a data specialist, your role is to examine the provided dataset, and determine a single engineered and interpretable feature that can perfectly separate the two classes of the dataset"
+{    "prompt_0": "As a data specialist, your role is to examine the provided dataset, and craft a single engineered and interpretable feature that can perfectly separate the two classes of the dataset. This feature paired with a decision classifier should be enough to solve the task"
 }

@@ -51,8 +51,8 @@ def dominant_freq(signal: Sequence[float], fs: float = 1.0) -> float:
 def diff_feature(df: pd.DataFrame) -> np.ndarray:
     """Return (n_samples, 1) array with |f_dom_ch1 − f_dom_ch2| per row."""
     # Identify columns by prefix (robust to variable lengths).
-    ch1_cols = [c for c in df.columns if c.startswith("ch1_")]
-    ch2_cols = [c for c in df.columns if c.startswith("ch2_")]
+    ch1_cols = [c for c in df.columns if c.startswith("a_")]
+    ch2_cols = [c for c in df.columns if c.startswith("b_")]
 
     X1 = df[ch1_cols].to_numpy()
     X2 = df[ch2_cols].to_numpy()

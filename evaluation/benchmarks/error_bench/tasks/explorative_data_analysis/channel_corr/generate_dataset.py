@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import random
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils import save_datasets   # noqa: E402
 
@@ -65,7 +65,7 @@ def generate_sample(corr: bool, length: int = 300, noise: float = 0.4):
 
 
 def create_dataset(n_samples: int = 200, length: int = 300,
-                   output_folder: Path | str = 'corr_dataset.csv'):
+                   output_folder = 'corr_dataset.csv'):
     data, labels = [], []
     for _ in range(n_samples // 2):
         data.append(generate_sample(True, length))
@@ -83,6 +83,8 @@ def create_dataset(n_samples: int = 200, length: int = 300,
 #                               SCRIPT ENTRY                                  #
 # --------------------------------------------------------------------------- #
 if __name__ == '__main__':
+    np.random.seed(42)
+    random.seed(42)
     out_dir = Path(__file__).resolve().parent
     train_df = create_dataset(output_folder=out_dir)
     test_df  = create_dataset(n_samples=200, length=500, output_folder=out_dir)

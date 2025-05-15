@@ -21,15 +21,17 @@ def generate_sample(high_var: bool) -> np.ndarray:
     x = np.random.normal(0, 1, size=N_FEATS)
 
     if high_var:
-        # inflate a random half of the first 8 features
+        # inflate a random half of the first 8 features  → large variance
         mask = np.random.choice([0, 1], size=N_VARS, p=[0.5, 0.5]).astype(bool)
-        x[:N_VARS][mask] *= np.random.uniform(2.0, 5.0)   # big stretch → huge variance
+        x[:N_VARS][mask] *= np.random.uniform(2.0, 5.0)
+
+        x[N_VARS:] *= np.random.uniform(0.2, 0.4)          # ↓ overall L2-norm
     else:
-        # *shrink* all first-8 features so variance is tiny
         x[:N_VARS] *= np.random.uniform(0.2, 0.4)
 
-    return x
+        x[N_VARS:] *= np.random.uniform(2.0, 5.0)          # ↑ overall L2-norm
 
+    return x
 
 def create_dataset(n_rows=2_000, out_csv='variance_tabular.csv') -> pd.DataFrame:
     rows, labels = [], []

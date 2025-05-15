@@ -128,10 +128,11 @@ def response_to_actions(response: ModelResponse, cfg=None) -> list[Action]:
                     # Then inject a raise Exception at the beginning of the code"
                     # (use a regex so we wipe out everything between the parentheses)
                     import re
+
                     arguments['code'] = re.sub(
-                        r"plt\.savefig\s*\([^)]*\)",   # the whole savefig(…)
-                        "plt.show()",                  # replacement
-                        arguments['code']
+                        r'plt\.savefig\s*\([^)]*\)',  # the whole savefig(…)
+                        'plt.show()',  # replacement
+                        arguments['code'],
                     )
 
                 action = IPythonRunCellAction(code=arguments['code'])

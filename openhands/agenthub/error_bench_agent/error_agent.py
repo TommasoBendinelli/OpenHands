@@ -2,7 +2,9 @@ import copy
 import os
 from collections import deque
 from functools import partial
+from pathlib import Path
 
+import pandas as pd
 from litellm import ChatCompletionToolParam
 from omegaconf import DictConfig
 
@@ -38,8 +40,7 @@ from openhands.runtime.plugins import (
     PluginRequirement,
 )
 from openhands.utils.prompt import PromptManager
-import pandas as pd
-from pathlib import Path
+
 
 class ErrorAgent(Agent):
     VERSION = '2.2'
@@ -240,9 +241,9 @@ class ErrorAgent(Agent):
                 # Extract all the the numbers of the first five rows and convert them to a string
 
                 self.numberical_values = df.values.flatten()[:1000].tolist()
-            
+
             for message in params['messages']:
-                #try:
+                # try:
                 candidate = message.get('content', '')
                 if isinstance(candidate, dict):
                     text = candidate.get('text', '')
@@ -308,8 +309,8 @@ class ErrorAgent(Agent):
 
         # Find each message with "already displayed to user" and remove it
         if self.cfg.is_plotting_enabled:
-            
             png_iter = iter(pngs)
+
             def save_png(png_iter):
                 # Save all the images in a list inside the evaluation folder
                 images = Path(self.cfg.eval_output_dir) / 'images'
@@ -322,13 +323,16 @@ class ErrorAgent(Agent):
                     # Convert the base64 string to bytes
                     img_bytes = base64.b64decode(b64)
                     pathlib.Path(images / f'{i}.png').write_bytes(img_bytes)
+
             save_png(png_iter)
-            
+
             for idx, message in enumerate(params['messages']):
                 rebuilt = []
                 # rebuild this message’s content
                 if isinstance(message['content'], list) and (
-                    'gemini' in self.cfg.llm_config or 'gpt' in self.cfg.llm_config or 'llama' in self.cfg.llm_config
+                    'gemini' in self.cfg.llm_config
+                    or 'gpt' in self.cfg.llm_config
+                    or 'llama' in self.cfg.llm_config
                 ):
                     for part in message['content']:
                         if (
@@ -362,7 +366,12 @@ class ErrorAgent(Agent):
                             rebuilt.append(part)  # unchanged part
                     message['content'] = rebuilt
 
-                elif isinstance(message, dict) and 'claude' in self.cfg.llm_config or "gpt" in self.cfg.llm_config or "llama" in self.cfg.llm_config:
+                elif (
+                    isinstance(message, dict)
+                    and 'claude' in self.cfg.llm_config
+                    or 'gpt' in self.cfg.llm_config
+                    or 'llama' in self.cfg.llm_config
+                ):
                     if (
                         'content' in message
                         and 'already displayed to user' in message['content']
@@ -396,7 +405,7 @@ class ErrorAgent(Agent):
                                     },
                                 }
                             )
-                
+
                         params['messages'][idx] = {
                             'content': rebuilt,
                             'role': message['role'],

@@ -2,4 +2,3 @@ python   evaluation/benchmarks/error_bench/run_infer.py   number_of_experiments=
 
 
 python   evaluation/benchmarks/error_bench/run_infer.py   number_of_experiments=1   eval_n_limit=1   class_type=explorative_data_analysis   instance=simultanus_spike,simultanus_spike,sum_threshold,variance_burst,zero_crossing    constraints=0   hints=0   llm_config="gemini_pro"   solution_iterations=10   cheating_attempt=False   warm_against_cheating=False   max_budget_per_task=1   prompt_variation=0 seed=20  keep_going_until_succeed=True native_tool_calling=False  is_plotting_enabled=True  give_structure_hint=True  disable_numbers=False -m
-

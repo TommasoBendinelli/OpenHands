@@ -29,7 +29,7 @@ from sklearn.tree import DecisionTreeClassifier
 def diff_feature(df: pd.DataFrame) -> np.ndarray:
     """Return (n_samples, 1) array with *feat3 − max(feat1, feat2)*."""
     # Cast to NumPy for speed and to avoid column‑name issues.
-    arr = df[["feat1", "feat2", "feat3"]].to_numpy()
+    arr = df[["1", "2", "3"]].to_numpy()
     diff = arr[:, 2] - np.maximum(arr[:, 0], arr[:, 1])
     return diff.reshape(-1, 1)
 

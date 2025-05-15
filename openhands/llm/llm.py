@@ -95,8 +95,7 @@ MODELS_WITHOUT_STOP_WORDS = [
     'o1-2024-12-17',
     'o4-mini-2025-04-16',
     'o4-mini',
-    'nvidia_nim/google/gemma-3-27b-it'
-    
+    'nvidia_nim/google/gemma-3-27b-it',
 ]
 
 
@@ -308,7 +307,8 @@ class LLM(RetryMixin, DebugMixin):
                         if (
                             len(new_msgs) == 2
                             and 'EXECUTION RESULT of [function]' in new_msgs[0]['text']
-                            and self.config.model == 'anthropic/claude-3.7-sonnet' or "llama" in self.config.model
+                            and self.config.model == 'anthropic/claude-3.7-sonnet'
+                            or 'llama' in self.config.model
                         ):
                             # Delete the first messsage
                             message['content'] = (
@@ -319,7 +319,8 @@ class LLM(RetryMixin, DebugMixin):
                             len(new_msgs) == 2
                             and 'EXECUTION RESULT of [execute_ipython_cell]'
                             in new_msgs[0]['text']
-                            and 'gemini' in self.config.model or "llama" in self.config.model
+                            and 'gemini' in self.config.model
+                            or 'llama' in self.config.model
                         ):
                             message['content'] = [
                                 {

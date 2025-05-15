@@ -325,9 +325,7 @@ def process_instance(
             else:
                 instruction += 'You can use only numpy, pandas and sklearn. You are not allowed to use any other library or generate plots.\n'
         if cfg.is_read_csv_banned:
-            instruction += (
-                'Additionally, you are not allowed to use the pandas pd.read_csv function'
-            )
+            instruction += 'Additionally, you are not allowed to use the pandas pd.read_csv function'
         # else:
         #     instruction = """You are an expert providing assistance the following dataset. Given the following dataset comprising time series, your task is to identify the features that separate two classes the most.
         #     """
@@ -407,7 +405,7 @@ def process_instance(
     if cfg.is_explaination_and_intepretation_included:
         instruction += 'At each step, explain your motivation for the code you are writing and an interpretation of the results you are seeing. Put it between <motivation> and </motivation>  and <interpretation> and </interpretation> tags. \n'
     if cfg.disable_numbers:
-        instruction += 'You are not allowed to use visualize raw values of the data, so commands such df.head() or opening directly the dataset are not allowed. \n'
+        instruction += 'You are not allowed to use visualize raw values of the data, so commands such df.head() or opening directly the dataset are not allowed. You can only submit solutions blindly. \n'
     if cfg.sid:
         sid = cfg.sid
     else:

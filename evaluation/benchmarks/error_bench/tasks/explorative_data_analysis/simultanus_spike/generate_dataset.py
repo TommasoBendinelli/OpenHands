@@ -52,7 +52,7 @@ def generate_sample(sync: bool,
             ch2[other_loc] += amp
     return np.concatenate([ch1, ch2])
 
-def create_dataset(n_samples=200, length=400, output_folder: Path | str = 'syncspike_dataset.csv'):
+def create_dataset(n_samples=200, length=400, output_folder= 'syncspike_dataset.csv'):
     data, labels = [], []
     for _ in range(n_samples // 2):
         data.append(generate_sample(True, length))
@@ -60,7 +60,7 @@ def create_dataset(n_samples=200, length=400, output_folder: Path | str = 'syncs
         data.append(generate_sample(False, length))
         labels.append(1)
 
-    cols = [f'ch1_{t}' for t in range(length)] + [f'ch2_{t}' for t in range(length)]
+    cols = [f'a_{t}' for t in range(length)] + [f'b_{t}' for t in range(length)]
     df = pd.DataFrame(data, columns=cols)
     df['label'] = labels
     return df

@@ -35,13 +35,13 @@ def generate_sample(f3max: bool, n_feats: int = 6):
 
 
 def create_dataset(n_samples=1_200, n_feats=6,
-                   output_folder: Path | str = 'dominant_dataset.csv'):
+                   output_folder = 'dominant_dataset.csv'):
     data, labels = [], []
     for _ in range(n_samples // 2):
         data.append(generate_sample(True, n_feats));  labels.append(1)
         data.append(generate_sample(False, n_feats)); labels.append(0)
 
-    cols = [f'feat{i+1}' for i in range(n_feats)]
+    cols = [f'{i+1}' for i in range(n_feats)]
     df = pd.DataFrame(data, columns=cols); df['label'] = labels
     return df
 
@@ -61,10 +61,10 @@ if __name__ == '__main__':
     fig = plt.figure(figsize=(6, 5))
     ax = fig.add_subplot(111, projection='3d')
     idx0 = train_df['label'] == 0
-    ax.scatter(train_df.loc[idx0, 'feat1'], train_df.loc[idx0, 'feat2'],
-               train_df.loc[idx0, 'feat3'], alpha=0.4, label='label 0')
-    ax.scatter(train_df.loc[~idx0, 'feat1'], train_df.loc[~idx0, 'feat2'],
-               train_df.loc[~idx0, 'feat3'], alpha=0.4, label='label 1')
-    ax.set_xlabel('feat1'); ax.set_ylabel('feat2'); ax.set_zlabel('feat3')
-    ax.set_title('feat3 dominant vs not'); ax.legend(); plt.tight_layout(); plt.show()
+    ax.scatter(train_df.loc[idx0, '1'], train_df.loc[idx0, '2'],
+               train_df.loc[idx0, '3'], alpha=0.4, label='label 0')
+    ax.scatter(train_df.loc[~idx0, '1'], train_df.loc[~idx0, '2'],
+               train_df.loc[~idx0, '3'], alpha=0.4, label='label 1')
+    ax.set_xlabel('1'); ax.set_ylabel('2'); ax.set_zlabel('3')
+    ax.set_title('3 dominant vs not'); ax.legend(); plt.tight_layout(); plt.show()
     fig.savefig(out_dir / 'dominant_dataset_example.png')

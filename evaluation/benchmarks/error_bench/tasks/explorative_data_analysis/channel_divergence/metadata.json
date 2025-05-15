@@ -1,5 +1,5 @@
 {
     "hint": "Try to find the number of peaks in the time series data.",
-    "is_time_series": false
+    "is_time_series": true
   }
 

@@ -35,10 +35,10 @@ EPS = 1e-12
 
 def _psd_after_diff(row: np.ndarray) -> np.ndarray:
     """Return the one‑sided PSD of the first‑difference of *row*."""
-    diff = np.diff(row)                      # length N‑1
+    diff = np.diff(row)  # length N‑1
     n = diff.size
     pxx = np.abs(np.fft.rfft(diff)) ** 2 / n
-    return pxx[1:]                          # drop DC bin
+    return pxx[1:]  # drop DC bin
 
 
 def crest_and_flatness(df: pd.DataFrame) -> np.ndarray:
@@ -68,14 +68,15 @@ def load_split(folder: Path, split: str):
 
 
 def main():
-    random.seed(0); np.random.seed(0)
+    random.seed(0)
+    np.random.seed(0)
     folder = Path(__file__).resolve().parent
 
     X_train, y_train = load_split(folder, "train")
-    X_test,  y_test  = load_split(folder, "test")
+    X_test, y_test = load_split(folder, "test")
 
     f_train = crest_and_flatness(X_train)
-    f_test  = crest_and_flatness(X_test)
+    f_test = crest_and_flatness(X_test)
 
     clf = DecisionTreeClassifier(max_depth=2, random_state=0)
     clf.fit(f_train, y_train)
@@ -85,7 +86,7 @@ def main():
     print(f"Tree thresholds: {thresh[0]:.3f}, {thresh[1]:.3f}")
 
     acc_train = clf.score(f_train, y_train)
-    acc_test  = clf.score(f_test, y_test)
+    acc_test = clf.score(f_test, y_test)
     print(f"Train accuracy: {acc_train:.2f}\nTest  accuracy: {acc_test:.2f}")
 
 

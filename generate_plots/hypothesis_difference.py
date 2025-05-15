@@ -1,17 +1,20 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
-from pathlib import Path    
 import pandas as pd
+
+
 def main():
-    tasks = ["find_peaks","frequency_band", "predict_ts_stationarity","set_points"]
+    tasks = ['find_peaks', 'frequency_band', 'predict_ts_stationarity', 'set_points']
     current = {}
     for task in tasks:
-        final_res = Path("end_results") / f"005_prompts_variations_{task}.csv"
+        final_res = Path('end_results') / f'005_prompts_variations_{task}.csv'
         # Open the CSV file
         df = pd.read_csv(final_res)
 
         # Replace -1 with NaN
         df.replace(-1, pd.NA, inplace=True)
-        # Take the mean across axis 
+        # Take the mean across axis
         df_mean = df.mean(axis=0)
         current[task] = df_mean
 
@@ -29,5 +32,5 @@ def main():
     plt.savefig('67ff59b20231d9f95909f426/figs/mean_accuracy_vs_mask.png', dpi=300)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
