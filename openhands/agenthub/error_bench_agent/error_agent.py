@@ -309,9 +309,9 @@ class ErrorAgent(Agent):
 
         # Find each message with "already displayed to user" and remove it
         if self.cfg.is_plotting_enabled:
-            png_iter = iter(pngs)
+            
 
-            def save_png(png_iter):
+            def save_png(pngs):
                 # Save all the images in a list inside the evaluation folder
                 images = Path(self.cfg.eval_output_dir) / 'images'
                 images.mkdir(parents=True, exist_ok=True)
@@ -324,8 +324,8 @@ class ErrorAgent(Agent):
                     img_bytes = base64.b64decode(b64)
                     pathlib.Path(images / f'{i}.png').write_bytes(img_bytes)
 
-            save_png(png_iter)
-
+            save_png(pngs)
+            png_iter = iter(pngs)
             for idx, message in enumerate(params['messages']):
                 rebuilt = []
                 # rebuild this message’s content
@@ -378,7 +378,6 @@ class ErrorAgent(Agent):
                     ):
                         # Check how many times "already displayed to user" appears
                         cnt = message['content'].count('already displayed to user')
-                        # 1️⃣ strip the marker
                         stripped = (
                             message['content']
                             .replace('already displayed to user', '')
@@ -388,7 +387,6 @@ class ErrorAgent(Agent):
                             rebuilt.append({'type': 'text', 'text': stripped})
 
                         for _ in range(cnt):
-                            # 2️⃣ inject next PNG
                             try:
                                 img_b64 = next(png_iter)
                             except StopIteration as e:
@@ -419,7 +417,7 @@ class ErrorAgent(Agent):
             new_msx = params
 
         response = self.llm.completion(**new_msx)
-
+        
         logger.debug(f'Response from LLM: {response}')
         actions = self.response_to_actions_fn(response)
         logger.debug(f'Actions after response_to_actions: {actions}')

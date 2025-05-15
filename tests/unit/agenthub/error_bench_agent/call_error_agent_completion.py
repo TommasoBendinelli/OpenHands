@@ -6,12 +6,17 @@ import sys
 
 import toml
 from omegaconf import OmegaConf
+from unittest.mock import MagicMock
 
 try:
     from openhands.agenthub.error_bench_agent.error_agent import ErrorAgent
     from openhands.core.config import AgentConfig, LLMConfig
     from openhands.core.logger import openhands_logger as logger
     from openhands.llm.llm import LLM
+    from openhands.controller.state.state import State
+    from openhands.core.message import Message, TextContent
+    from openhands.events.action import MessageAction
+    from openhands.events.event import EventSource
 except ImportError as e:
     print(f'Error importing OpenHands modules: {e}\nPYTHONPATH: {sys.path}')
     sys.exit(1)
@@ -41,6 +46,12 @@ def main():
         default=None,
         help='Override temperature for the selected LLM configuration.',
     )
+    parser.add_argument(
+        '--hydra_config_file',
+        type=str,
+        default=None,
+        help='Path to the Hydra configuration file. Default: None',
+    )
 
     args = parser.parse_args()
     logger.info(
@@ -50,14 +61,27 @@ def main():
     selected_llm_config_dict = None
     full_toml_data = None
 
-    # Open hydra config too
-    cfg = OmegaConf.load(args.config_file)
+    # Load Hydra config if specified
+    cfg = None
+    if args.hydra_config_file:
+        if os.path.exists(args.hydra_config_file):
+            logger.info(f'Loading Hydra configuration from: {args.hydra_config_file}')
+            try:
+                cfg = OmegaConf.load(args.hydra_config_file)
+            except Exception as e:
+                logger.error(f'Failed to load Hydra config file: {e}', exc_info=True)
+                return
+        else:
+            logger.warning(f"Hydra configuration file '{args.hydra_config_file}' not found.")
 
     GEMINI_PRO_DEFAULTS = {
         'model': 'gemini-1.5-flash-latest',
         'temperature': 0.1,
         'custom_llm_provider': 'gemini',
     }
+
+    selected_llm_config_dict = None
+    full_toml_data = None
 
     config_file_exists = os.path.exists(args.config_file)
     if config_file_exists:
@@ -144,8 +168,9 @@ def main():
         )
 
     if 'custom_llm_provider' in selected_llm_config_dict:
+        final_llm_args_for_config_class['custom_llm_provider'] = selected_llm_config_dict['custom_llm_provider']
         logger.info(
-            f"Note: 'custom_llm_provider' found ('{selected_llm_config_dict['custom_llm_provider']}'). This is typically handled by LiteLLM, not directly by LLMConfig."
+            f"Including 'custom_llm_provider' ('{selected_llm_config_dict['custom_llm_provider']}') in LLMConfig."
         )
 
     llm_config = LLMConfig(**final_llm_args_for_config_class)
@@ -153,67 +178,75 @@ def main():
         f"LLMConfig created: model='{llm_config.model}', temperature='{getattr(llm_config, 'temperature', 'N/A')}'"
     )
 
-    breakpoint()
-    try:
-        llm = LLM(config=llm_config)
-        logger.info(
-            f"LLM initialized: model='{llm.config.model}', temperature='{getattr(llm.config, 'temperature', 'N/A')}'"
-        )
-    except Exception as e:
-        logger.error(f'Failed to initialize LLM with config: {e}', exc_info=True)
-        return
+    # Create a mock LLM object to avoid real API calls
+    mock_llm = MagicMock()
+
+    # Configure the mock LLM's completion method to return a simulated response
+    # Configure the mock LLM's completion method to return a simulated response
+    # Mimic the structure of litellm.types.utils.ModelResponse
+    mock_response = MagicMock(spec=['choices', 'id']) # Add 'id' to the spec
+    mock_response.id = "mock_response_id_123" # Assign a dummy ID
+    mock_response.choices = [MagicMock(spec=['message'])]
+    mock_response.choices[0].message = MagicMock(spec=['content', 'tool_calls'])
+    mock_response.choices[0].message.content = "A large language model is an AI model trained on a massive amount of text data to understand and generate human-like text."
+    mock_response.choices[0].message.tool_calls = None # Ensure no tool calls are returned
+
+    mock_llm.completion.return_value = mock_response
+
+    llm = mock_llm # Use the mock LLM
+
+    logger.info("Mock LLM initialized with structured response.")
+# Debugging prints
+    print(f"Debug: mock_response type: {type(mock_response)}")
+    print(f"Debug: mock_response has choices: {'choices' in dir(mock_response)}")
+    if hasattr(mock_response, 'choices'):
+        print(f"Debug: mock_response.choices type: {type(mock_response.choices)}")
+        print(f"Debug: len(mock_response.choices): {len(mock_response.choices)}")
+        if len(mock_response.choices) > 0:
+            print(f"Debug: mock_response.choices[0] type: {type(mock_response.choices[0])}")
+            print(f"Debug: mock_response.choices[0] has message: {'message' in dir(mock_response.choices[0])}")
+            if hasattr(mock_response.choices[0], 'message'):
+                print(f"Debug: mock_response.choices[0].message type: {type(mock_response.choices[0].message)}")
+                print(f"Debug: mock_response.choices[0].message has content: {'content' in dir(mock_response.choices[0].message)}")
+                print(f"Debug: mock_response.choices[0].message has tool_calls: {'tool_calls' in dir(mock_response.choices[0].message)}")
+
+    
 
     # MODIFIED AgentConfig initialization
     agent_config = AgentConfig()
     logger.info('AgentConfig initialized (default).')
 
     try:
-        error_agent_instance = ErrorAgent(llm=llm, config=agent_config, cfg=None)
+        error_agent_instance = ErrorAgent(llm=llm, config=agent_config, cfg=cfg)
         logger.info('ErrorAgent instantiated successfully.')
     except Exception as e:
         logger.error(f'Failed to instantiate ErrorAgent: {e}', exc_info=True)
-        return
 
     prompt = 'What is a large language model? Explain in one sentence.'
-    logger.info(f"Calling trigger_manual_llm_completion with prompt: '{prompt}'")
+    logger.info(f"Simulating user message with prompt: '{prompt}'")
+
+    # Create a State object and add the user message to history
+    state = State()
+    # Create a MessageAction and add it to history
+    # The 'source' attribute is added by the State/View logic, not the constructor
+    user_message_action = MessageAction(content=prompt)
+    state.history.append(user_message_action)
 
     try:
-        response = error_agent_instance.trigger_manual_llm_completion(
-            prompt_text=prompt
-        )
-    except Exception as e:
-        logger.error(f'Error calling trigger_manual_llm_completion: {e}', exc_info=True)
-        return
+        # Call the agent's step method to get an action
+        action = error_agent_instance.step(state)
 
-    logger.info('Response from LLM completion:')
-    if response and isinstance(response, dict):
-        if 'error' in response:
-            logger.error(
-                f"LLM completion method returned an error: {response['error']}"
-            )
-            if 'details' in response:
-                logger.error(f"Details: {response['details']}")
-        elif (
-            'choices' in response
-            and response['choices']
-            and isinstance(response['choices'], list)
-            and len(response['choices']) > 0
-            and response['choices'][0]
-            and isinstance(response['choices'][0], dict)
-            and 'message' in response['choices'][0]
-            and isinstance(response['choices'][0]['message'], dict)
-            and 'content' in response['choices'][0]['message']
-        ):
-            content = response['choices'][0]['message']['content']
-            print(f'\nLLM Output:\n{content}')
+        logger.info(f'Agent returned action: {type(action).__name__}')
+
+        # Check if the action is a MessageAction and print its content
+        if isinstance(action, Message):
+            print(f'\nLLM Output:\n{action.content}')
         else:
-            print(
-                f'\nLLM Response (structure not fully parsed/unexpected):\n{response}'
-            )
-    else:
-        print(
-            f'\nReceived unexpected response format from trigger_manual_llm_completion:\n{response}'
-        )
+            print(f'\nAgent returned unexpected action type: {type(action).__name__}')
+            print(f'Action details: {action}')
+
+    except Exception as e:
+        logger.error(f'Error during agent step: {e}', exc_info=True)
 
 
 if __name__ == '__main__':
