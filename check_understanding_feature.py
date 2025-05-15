@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 from dotenv import find_dotenv, load_dotenv
-from omegaconf import OmegaConf
 
 from evaluation.utils.loading_experiments import _load_experiment, get_folders_in_range
 
@@ -136,12 +134,11 @@ def main():
 
     if run_it:
         for i in range(0, 4):
-
             # Iterate over the folders
             res = {}
             entries_df = []
             for folder in runs:
-                print(f"Processing folder: {folder}")
+                print(f'Processing folder: {folder}')
                 # Open metadata
                 metadata, outputs, cfg = _load_experiment(folder)
 
@@ -251,7 +248,7 @@ def main():
 
                 if (
                     outputs[0]['error']
-                    and "RuntimeError: Agent reached maximum budget"
+                    and 'RuntimeError: Agent reached maximum budget'
                     in outputs[0]['error']
                 ):
                     outputs[0]['error'] = None

@@ -1,20 +1,23 @@
 import copy
 import os
 from collections import deque
+from functools import partial
 
 from litellm import ChatCompletionToolParam
 from omegaconf import DictConfig
+
 import openhands.agenthub.codeact_agent.function_calling as codeact_function_calling
-from openhands.agenthub.error_bench_agent.tools.bash import create_cmd_run_tool
-# from openhands.agenthub.error_bench_agent.tools.browser import BrowserTool
-from openhands.agenthub.error_bench_agent.tools.finish import FinishTool
-from openhands.agenthub.error_bench_agent.tools.ipython import IPythonTool
+
 # from openhands.agenthub.error_bench_agent.tools.llm_based_edit import LLMBasedFileEditTool
 # from openhands.agenthub.error_bench_agent.tools.str_replace_editor import (
 #     create_str_replace_editor_tool,
 # )
 from openhands.agenthub.codeact_agent.tools.think import ThinkTool
-from openhands.agenthub.codeact_agent.tools.web_read import WebReadTool
+from openhands.agenthub.error_bench_agent.tools.bash import create_cmd_run_tool
+
+# from openhands.agenthub.error_bench_agent.tools.browser import BrowserTool
+from openhands.agenthub.error_bench_agent.tools.finish import FinishTool
+from openhands.agenthub.error_bench_agent.tools.ipython import IPythonTool
 from openhands.controller.agent import Agent
 from openhands.controller.state.state import State
 from openhands.core.config import AgentConfig
@@ -35,7 +38,8 @@ from openhands.runtime.plugins import (
     PluginRequirement,
 )
 from openhands.utils.prompt import PromptManager
-from functools import partial
+import pandas as pd
+from pathlib import Path
 
 class ErrorAgent(Agent):
     VERSION = '2.2'
@@ -91,9 +95,10 @@ class ErrorAgent(Agent):
 
         self.condenser = Condenser.from_config(self.config.condenser)
         logger.debug(f'Using condenser: {type(self.condenser)}')
-        
 
-        self.response_to_actions_fn = partial(codeact_function_calling.response_to_actions,cfg=self.cfg)
+        self.response_to_actions_fn = partial(
+            codeact_function_calling.response_to_actions, cfg=self.cfg
+        )
 
     def _get_tools(self) -> list[ChatCompletionToolParam]:
         # For these models, we use short tool descriptions ( < 1024 tokens)
@@ -175,9 +180,9 @@ class ErrorAgent(Agent):
         )
 
         if self.cfg.is_plotting_enabled:
-            content = [x.content for x in condensed_history if "content" in x.__dict__]
+            content = [x.content for x in condensed_history if 'content' in x.__dict__]
             # Find all the times where data:image/png;base64, appears in the text
-            text = "\n".join(content)
+            text = '\n'.join(content)
             pngs = []
             for i, line in enumerate(text.split('\n')):
                 if 'data:image/png;base64,' in line:
@@ -186,48 +191,6 @@ class ErrorAgent(Agent):
                     #     f.write(png.encode('utf-8'))
                     png = line.split('data:image/png;base64,')[1].split(')')[0]
                     pngs.append(png)
-                # print(f"PNG: {png}")
-                # breakpoint()
-                # Save the image locally 
-                # from pathlib import Path
-                # import base64, pathlib
-                # from uuid import uuid4
-                # Check if self.uuid4 already exists
-
-
-        # # replace base64 images with a placeholder
-        # splitted = text.split('\n')
-        # for i, line in enumerate(splitted):
-        #     if '![image](data:image/png;base64,' in line:
-                
-        #         # breakpoint()
-        #         # with open(current / f'{i}.png', 'wb') as f:
-        #         #     f.write(png.encode('utf-8'))
-                
-        #         splitted[i] = (
-        #             '![image](data:image/png;base64, ...) already displayed to user'
-        #         )
-        # breakpoint()
-        # Save the image locally 
-                    # from pathlib import Path
-                    # import base64, pathlib
-                    # from uuid import uuid4
-                    # # Check if self.uuid4 already exists
-                    # if not ("uuid4" in dir(self)):
-                    #     self.uuid4 = uuid4()
-                    # current = Path("tmp/") / str(self.uuid4) # .mkdir(parents=True, exist_ok=True) 
-                    # current.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
-                    # # Generate a unique filename
-                    # # Check if there are alredy pictures saved and find the one with the highest number
-                    # existing_pictures = [int(p.stem) for p in current.glob("*.png")]
-                    # breakpoint()
-                    # if existing_pictures:
-                    #     i = max(existing_pictures) + 1
-                    # else:
-                    #     i = 0
-                    # b64 = line.split('data:image/png;base64,')[1].split(')')[0]
-                    # img_bytes = base64.b64decode(b64)
-                    # pathlib.Path(current / f'{i}.png').write_bytes(img_bytes)
         messages = self._get_messages(condensed_history)
         params: dict = {
             'messages': self.llm.format_messages_for_llm(messages),
@@ -265,59 +228,74 @@ class ErrorAgent(Agent):
         params['extra_body'] = {'metadata': state.to_llm_metadata(agent_name=self.name)}
 
         # Remove anything that is more than contains more than 100 digits in a row
-
-       
         if self.cfg.disable_numbers:
             # Get the data if not already there
-            if not "numberical_values" in dir(self):
-                # Get the data file 
-                import pandas as pd
-                
+            if 'numberical_values' not in dir(self):
+                # Get the data file
+
                 # Open the file
-                df = pd.read_csv(f"evaluation/benchmarks/error_bench/tasks/{self.cfg.class_type}/{self.cfg.instance}/train.csv")
+                df = pd.read_csv(
+                    f'evaluation/benchmarks/error_bench/tasks/{self.cfg.class_type}/{self.cfg.instance}/train.csv'
+                )
                 # Extract all the the numbers of the first five rows and convert them to a string
-                
+
                 self.numberical_values = df.values.flatten()[:1000].tolist()
             
             for message in params['messages']:
-                if "gemini" in self.cfg.llm_config:
-                    text = message.get('content', '')[0]["text"]
-                elif "claude" in self.cfg.llm_config:
-                    text = message["content"]
-                else:
-                    raise ValueError("Unsupported LLM config")
+                #try:
+                candidate = message.get('content', '')
+                if isinstance(candidate, dict):
+                    text = candidate.get('text', '')
+                elif isinstance(candidate, list):
+                    if len(candidate) == 0:
+                        continue
+                    else:
+                        candidate = candidate[0]
+                    if isinstance(candidate, dict):
+                        text = candidate.get('text', '')
+                    elif isinstance(candidate, str):
+                        text = candidate
+                    else:
+                        breakpoint()
+                # if 'gemini' in self.cfg.llm_config or 'llama' in self.cfg.llm_config:
+                #     text = message.get('content', '')[0]['text']
+                # elif 'claude' in self.cfg.llm_config:
+                #     text = message['content']
+                # else:
+                #     raise ValueError('Unsupported LLM config')
                 # text = message.get('content', '')[0]["text"]
                 counter = 0
                 # Check if the text contains 4 or more consecutive digits
                 for num in self.numberical_values:
-                    
                     if str(num)[:5] in text:
                         counter += 1
 
                     if counter > 20:
-                        if "gemini" in self.cfg.llm_config:
+                        if 'gemini' in self.cfg.llm_config:
                             # Replace the message with a placeholder
-                            message['content'][0]['text'] = "Raw numbers of the dataset not available. Report this error to the user and keep going."
-                        elif "claude" in self.cfg.llm_config:
+                            message['content'][0]['text'] = (
+                                'Raw numbers of the dataset not available. Report this error to the user and keep going.'
+                            )
+                        elif 'claude' in self.cfg.llm_config:
                             # Replace the message with a placeholder
-                            message['content'] = "Raw numbers of the dataset not available. Report this error to the and keep going."
+                            message['content'] = (
+                                'Raw numbers of the dataset not available. Report this error to the and keep going.'
+                            )
                         # Replace the message with a placeholder
                         # message['content'][0]['text'] = "Raw numbers of the dataset not available. Report this to the user and keep going."
                         break
                 # If the text contains 4 or more consecutive digits, replace it with "Result not available"
                 # if counter > 4:
 
-
-
                 # # If the text contains 100 or more consecutive digits, replace it with "Result not available"
                 # if long_digits_pattern.search(text):
                 #     # Replace the message with a placeholder
                 #     message['content'][0]['text'] = "Raw numbers of the dataset not available"
-                
+
                 # # if "0.344435  1.548645" in text:
                 # #     # Replace the message with a placeholder
                 # #     message['content'][0]['text'] = "Raw numbers of the dataset not available"
-                    
+
                 # filtered.append(message)
                 # # If there are more than 100 digits in a row, remove the message
                 # #if (
@@ -325,104 +303,113 @@ class ErrorAgent(Agent):
                 # # message['content'][0]['text']
         # Go over the messages and if there is any with more  tokens, don't visualize it
 
-        # Load all the images 
+        # Load all the images
         # self.uuid4
-        
-        # Find each message with "already displayed to user" and remove it
-    
-       
-        if self.cfg.is_plotting_enabled:
-            from pathlib import Path
-            png_iter = iter(pngs)
-            # Save all the images in a list inside the evaluation folder
-            images = (Path(self.cfg.eval_output_dir) / "images")
-            images.mkdir(parents=True, exist_ok=True)
-            # Save the images in the folder
-            for i, b64 in enumerate(pngs):
-                import base64
-                import pathlib  
-                # Convert the base64 string to bytes
-                img_bytes = base64.b64decode(b64)
-                pathlib.Path(images / f"{i}.png").write_bytes(img_bytes)
 
-            for idx, message in enumerate(params["messages"]):
-                rebuilt = [] 
-                                                # rebuild this message’s content
-                if isinstance(message["content"], list) and  ("gemini" in self.cfg.llm_config or "gpt" in self.cfg.llm_config):
-                    for part in message["content"]:
+        # Find each message with "already displayed to user" and remove it
+        if self.cfg.is_plotting_enabled:
+            
+            png_iter = iter(pngs)
+            def save_png(png_iter):
+                # Save all the images in a list inside the evaluation folder
+                images = Path(self.cfg.eval_output_dir) / 'images'
+                images.mkdir(parents=True, exist_ok=True)
+                # Save the images in the folder
+                for i, b64 in enumerate(pngs):
+                    import base64
+                    import pathlib
+
+                    # Convert the base64 string to bytes
+                    img_bytes = base64.b64decode(b64)
+                    pathlib.Path(images / f'{i}.png').write_bytes(img_bytes)
+            save_png(png_iter)
+            
+            for idx, message in enumerate(params['messages']):
+                rebuilt = []
+                # rebuild this message’s content
+                if isinstance(message['content'], list) and (
+                    'gemini' in self.cfg.llm_config or 'gpt' in self.cfg.llm_config or 'llama' in self.cfg.llm_config
+                ):
+                    for part in message['content']:
                         if (
-                            part.get("type") == "text"
-                            and "already displayed to user" in part["text"]
+                            part.get('type') == 'text'
+                            and 'already displayed to user' in part['text']
                         ):
-                            stripped = part["text"].replace("already displayed to user", "").strip()
+                            stripped = (
+                                part['text']
+                                .replace('already displayed to user', '')
+                                .strip()
+                            )
                             if stripped:
-                                rebuilt.append({"type": "text", "text": stripped})
+                                rebuilt.append({'type': 'text', 'text': stripped})
                             try:
                                 img_b64 = next(png_iter)
                             except StopIteration as e:
                                 raise ValueError(
-                                    "Not enough images in `pngs` for every placeholder."
+                                    'Not enough images in `pngs` for every placeholder.'
                                 ) from e
 
-                            rebuilt.append({
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/png;base64,{img_b64}",
-                                    "format": "image/png"
+                            rebuilt.append(
+                                {
+                                    'type': 'image_url',
+                                    'image_url': {
+                                        'url': f'data:image/png;base64,{img_b64}',
+                                        'format': 'image/png',
+                                    },
                                 }
-                            })
+                            )
                         else:
-                            rebuilt.append(part)                    # unchanged part
-                    message["content"] = rebuilt   
-                    
-                elif isinstance(message, dict) and "claude" in self.cfg.llm_config:
+                            rebuilt.append(part)  # unchanged part
+                    message['content'] = rebuilt
+
+                elif isinstance(message, dict) and 'claude' in self.cfg.llm_config or "gpt" in self.cfg.llm_config or "llama" in self.cfg.llm_config:
                     if (
-                            "content" in message and "already displayed to user" in message["content"]
-                        ):
-                            
-                            # Check how many times "already displayed to user" appears
-                            cnt = message["content"].count("already displayed to user")
-                            # 1️⃣ strip the marker
-                            stripped = message["content"].replace("already displayed to user", "").strip()
-                            if stripped:
-                                rebuilt.append({"type": "text", "text": stripped})
+                        'content' in message
+                        and 'already displayed to user' in message['content']
+                    ):
+                        # Check how many times "already displayed to user" appears
+                        cnt = message['content'].count('already displayed to user')
+                        # 1️⃣ strip the marker
+                        stripped = (
+                            message['content']
+                            .replace('already displayed to user', '')
+                            .strip()
+                        )
+                        if stripped:
+                            rebuilt.append({'type': 'text', 'text': stripped})
 
-
-                            for _ in range(cnt):
-                                # 2️⃣ inject next PNG
-                                try:
-                                    img_b64 = next(png_iter)
-                                except StopIteration as e:
-                                    raise ValueError(
-                                        "Not enough images in `pngs` for every placeholder."
-                                    ) from e
-                                # rebuilt.append({"type": "text", "text": f"Image {i}"})
-                                rebuilt.append({
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/png;base64,{img_b64}",
-                                    "format": "image/png"
-                                }})
-                                # rebuilt.append({
-                                #     "type": "image",
-                                #     "source": {
-                                #         "type": "base64",
-                                #         "media_type": "image/png",
-                                #         "data": f"{img_b64}",
-                                #     }
-                                # })
-                            params["messages"][idx] = {"content": rebuilt, "role": message["role"]}  # put rebuilt list back
-                            # ← put rebuilt list back
+                        for _ in range(cnt):
+                            # 2️⃣ inject next PNG
+                            try:
+                                img_b64 = next(png_iter)
+                            except StopIteration as e:
+                                raise ValueError(
+                                    'Not enough images in `pngs` for every placeholder.'
+                                ) from e
+                            # rebuilt.append({"type": "text", "text": f"Image {i}"})
+                            rebuilt.append(
+                                {
+                                    'type': 'image_url',
+                                    'image_url': {
+                                        'url': f'data:image/png;base64,{img_b64}',
+                                        'format': 'image/png',
+                                    },
+                                }
+                            )
+                
+                        params['messages'][idx] = {
+                            'content': rebuilt,
+                            'role': message['role'],
+                        }  # put rebuilt list back
+                        # ← put rebuilt list back
                 else:
-                    raise ValueError("Unsupported LLM config")
+                    raise ValueError('Unsupported LLM config')
             # clone *after* the edits so the two dicts differ only by this change
             new_msx = copy.deepcopy(params)
         else:
             new_msx = params
-        
+
         response = self.llm.completion(**new_msx)
-       
-        
 
         logger.debug(f'Response from LLM: {response}')
         actions = self.response_to_actions_fn(response)

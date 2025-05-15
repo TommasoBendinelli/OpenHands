@@ -1,13 +1,12 @@
-from sklearn.feature_extraction.text import CountVectorizer
+import ast
+import re
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Literal, Optional, Tuple
-import re
-from omegaconf import OmegaConf
-import json
-import ast
-from collections import Counter
-from evaluation.utils.loading_experiments import get_folders_in_range, _load_experiment
+
+from sklearn.feature_extraction.text import CountVectorizer
+
+from evaluation.utils.loading_experiments import _load_experiment, get_folders_in_range
 
 
 def count_ngrams(text):
@@ -41,9 +40,9 @@ def clean_code(code: str) -> str:
             ast.parse(line)
             cleaned_lines.append(line)
         except SyntaxError:
-            print(f"Skipping faulty line {i+1}: {line!r}")
+            print(f'Skipping faulty line {i+1}: {line!r}')
             continue
-    return "\n".join(cleaned_lines)
+    return '\n'.join(cleaned_lines)
 
 
 def extract_function_calls(code: str) -> list:
@@ -73,14 +72,14 @@ def extract_function_calls(code: str) -> list:
                     func = func.value
                 if isinstance(func, ast.Name):
                     attrs.append(func.id)
-                    full_name = ".".join(reversed(attrs))
+                    full_name = '.'.join(reversed(attrs))
                     func_name = full_name
                 else:
                     continue
             else:
                 continue
 
-            if func_name.split(".")[0] not in custom_funcs:
+            if func_name.split('.')[0] not in custom_funcs:
                 called_functions.append(func_name)
 
     return called_functions
@@ -103,8 +102,7 @@ def remove_jupyter_bash_lines(code: str) -> str:
     return '\n'.join(cleaned_lines)
 
 
-if __name__ == "__main__":
-
+if __name__ == '__main__':
     # Get all the entries evaluation/evaluation_outputs/outputs
     ROOT_DIR = Path('evaluation/evaluation_outputs/outputs')
     AFTER = datetime.strptime('2025-05-10_00-05-01', '%Y-%m-%d_%H-%M-%S')
@@ -115,7 +113,6 @@ if __name__ == "__main__":
 
     messages = []
     for folder in runs:
-
         # Open metadata
         metadata, outputs, cfg = _load_experiment(folder)
 
@@ -127,20 +124,20 @@ if __name__ == "__main__":
                 if 'args' in key:
                     if 'code' in i['args'].keys():
                         # 'pip install pandas' cannot be handeled by ast
-                        if "pip install" in i['args']['code']:
+                        if 'pip install' in i['args']['code']:
                             # remove the line
                             i['args']['code'] = i['args']['code'].replace(
-                                "pip install pandas", ""
+                                'pip install pandas', ''
                             )
-                        if "%" in i['args']['code']:
+                        if '%' in i['args']['code']:
                             # remove the line
-                            i['args']['code'] = i['args']['code'].replace("%", "")
+                            i['args']['code'] = i['args']['code'].replace('%', '')
 
                         i['args']['code'] = remove_jupyter_bash_lines(i['args']['code'])
                         messages.append(i['args']['code'])
 
     # Concatenate all string items in the list into one string
-    all_generated_code = "\n".join(messages)
+    all_generated_code = '\n'.join(messages)
 
     called_functions = extract_function_calls(all_generated_code)
 
@@ -148,10 +145,10 @@ if __name__ == "__main__":
     call_counts = Counter(called_functions)
 
     # Step 5: Print results
-    print("Library/Built-in Function Calls:")
+    print('Library/Built-in Function Calls:')
     for func, count in call_counts.items():
-        print(f"- {func}: {count}")
+        print(f'- {func}: {count}')
 
     # Top 5 most common function calls
     top_5_calls = call_counts.most_common(15)
-    print(f"\nTop 15 Most Common Function Calls: {top_5_calls}")
+    print(f'\nTop 15 Most Common Function Calls: {top_5_calls}')

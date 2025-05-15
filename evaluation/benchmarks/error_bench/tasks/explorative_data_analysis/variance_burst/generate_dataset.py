@@ -44,7 +44,7 @@ def generate_signal(burst: bool, length: int = 300, base_std: float = 0.5):
 def create_dataset(
     n_samples: int = 200,
     length: int = 300,
-    output_folder: Path | str = 'variance_dataset.csv',
+    output_folder = 'variance_dataset.csv',
     base_std: float = 0.5,
 ):
     data, labels = [], []

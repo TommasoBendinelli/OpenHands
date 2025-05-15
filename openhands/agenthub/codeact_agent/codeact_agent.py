@@ -70,6 +70,7 @@ class CodeActAgent(Agent):
         self,
         llm: LLM,
         config: AgentConfig,
+        cfg: dict = None,
     ) -> None:
         """Initializes a new instance of the CodeActAgent class.
 

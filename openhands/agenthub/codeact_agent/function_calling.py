@@ -58,7 +58,7 @@ def response_to_actions(response: ModelResponse, cfg=None) -> list[Action]:
     assert len(response.choices) == 1, 'Only one choice is supported for now'
     choice = response.choices[0]
     assistant_msg = choice.message
-    
+
     if hasattr(assistant_msg, 'tool_calls') and assistant_msg.tool_calls:
         # Check if there's assistant_msg.content. If so, add it to the thought
         thought = ''
@@ -104,9 +104,9 @@ def response_to_actions(response: ModelResponse, cfg=None) -> list[Action]:
                     # Check if sklearn is in the code
                     if 'import sklearn' in arguments['code']:
                         # Then inject a raise Exception at the beginning of the code"
-                        arguments['code'] = "raise Exception('sklearn is disabled!')\n" 
+                        arguments['code'] = "raise Exception('sklearn is disabled!')\n"
 
-                    if "from sklearn" in arguments['code']:
+                    if 'from sklearn' in arguments['code']:
                         # Then inject a raise Exception at the beginning of the code"
                         arguments['code'] = "raise Exception('sklearn is disabled!')\n"
 
@@ -114,7 +114,25 @@ def response_to_actions(response: ModelResponse, cfg=None) -> list[Action]:
                     # Check if read_csv is in the code
                     if 'pd.read_csv' in arguments['code']:
                         # Then inject a raise Exception at the beginning of the code"
-                        arguments['code'] = "raise Exception('you are not allowed to use pd.read_csv!')\n"
+                        arguments['code'] = (
+                            "raise Exception('you are not allowed to use pd.read_csv!')\n"
+                        )
+
+                if '/mnt/test_gt.csv' in arguments['code']:
+                    # Then inject a raise Exception at the beginning of the code"
+                    arguments['code'] = (
+                        "raise Exception('you are not allowed to use /mnt/test_gt.csv!')\n"
+                    )
+                # Check if there is plt.savefig() in the code and replace it with plt.show()
+                if 'plt.savefig' in arguments['code']:
+                    # Then inject a raise Exception at the beginning of the code"
+                    # (use a regex so we wipe out everything between the parentheses)
+                    import re
+                    arguments['code'] = re.sub(
+                        r"plt\.savefig\s*\([^)]*\)",   # the whole savefig(…)
+                        "plt.show()",                  # replacement
+                        arguments['code']
+                    )
 
                 action = IPythonRunCellAction(code=arguments['code'])
             elif tool_call.function.name == 'delegate_to_browsing_agent':

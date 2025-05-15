@@ -16,8 +16,6 @@ import numpy as np
 import pandas as pd
 from dotenv import find_dotenv, load_dotenv
 from omegaconf import OmegaConf
-from scipy import stats
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
 load_dotenv(find_dotenv())  # automatically walks up folders
 # # ---------- OpenAI ---------------------------------------------------------
@@ -217,15 +215,36 @@ solutions = {
     'set_points': 'The correct feature is to consider whether there are set points in the signal or not.',
 }
 
-dataset =[
-    'row_variance','phase_aligment','simultanus_spike','channel_corr','outlier_ratio','channel_divergence','variance_burst','interaction_sign','ground_mean_threashold','dominant_feature','common_frequency','predict_ts_stationarity','zero_crossing','sum_threshold','spike_presence','cofounded_group_outlier','find_peaks','row_max_abs','periodic_presence'
+dataset = [
+    'row_variance',
+    'phase_aligment',
+    'simultanus_spike',
+    'channel_corr',
+    'outlier_ratio',
+    'channel_divergence',
+    'variance_burst',
+    'interaction_sign',
+    'ground_mean_threashold',
+    'dominant_feature',
+    'common_frequency',
+    'predict_ts_stationarity',
+    'zero_crossing',
+    'sum_threshold',
+    'spike_presence',
+    'cofounded_group_outlier',
+    'find_peaks',
+    'row_max_abs',
+    'periodic_presence',
 ]
 
 time_series_datasets = [
-    "simultanus_spike","variance_burst","zero_crossing","predict_ts_stationarity"
+    'simultanus_spike',
+    'variance_burst',
+    'zero_crossing',
+    'predict_ts_stationarity',
 ]
 
-tabular_datasets = ["sum_threshold"]
+tabular_datasets = ['sum_threshold']
 
 
 def main():
@@ -283,7 +302,7 @@ def main():
         res[str(folder)]['metrics'].append(metric)
         res[str(folder)]['number_of_submissions'] = number_of_submissions
         if 'metrics' in outputs[0]:
-            accumulated_cost = outputs[0]['metrics']['accumulated_cost'] 
+            accumulated_cost = outputs[0]['metrics']['accumulated_cost']
         # elif 'llm_metrics' in outputs[0]['history'][-1]:
         #     accumulated_cost = outputs[0]['history'][-1]['llm_metrics'][
         #         'accumulated_cost'
@@ -305,7 +324,7 @@ def main():
         def compute_cost_per_score(
             msgs: list[dict],
             costs: list[dict],
-            scores: list[float],    
+            scores: list[float],
             llm_config: str,
         ) -> float:
             """
@@ -321,15 +340,17 @@ def main():
                 #     breakpoint()
                 for idx, msg in enumerate(msgs):
                     if 'llm_metrics' in msg:
-                        accumulated_cost = msg['llm_metrics']['accumulated_cost'] # + accumulated_cost
+                        accumulated_cost = msg['llm_metrics'][
+                            'accumulated_cost'
+                        ]  # + accumulated_cost
 
                     if 'content' not in msg:
                         continue
                     if 'Accuracy on test set' in msg['content']:
                         cost_associated_with_score.append(accumulated_cost)
                 return cost_associated_with_score
-            
-            elif "gemini" in llm_config:
+
+            elif 'gemini' in llm_config:
                 for idx, score in enumerate(scores, 1):
                     # Search in which msg there is "idx: score"
                     for idx_msg, msg in enumerate(msgs[to_go_idx:], to_go_idx):
@@ -357,6 +378,7 @@ def main():
                 raise ValueError(
                     f'Unknown llm_config: {llm_config}. Please check the config.'
                 )
+
         msgs = outputs[0]['history']
         costs = outputs[0]['metrics']['costs']
         cost_associated_with_scores = compute_cost_per_score(
@@ -372,18 +394,21 @@ def main():
         }
         df = pd.DataFrame.from_dict(current_dict)
 
-        if outputs[0]['error'] and "RuntimeError: Agent reached maximum budget" in outputs[0]['error']:
-            outputs[0]['error'] = None 
+        if (
+            outputs[0]['error']
+            and 'RuntimeError: Agent reached maximum budget' in outputs[0]['error']
+        ):
+            outputs[0]['error'] = None
             use_max_budget = True
         else:
             use_max_budget = False
-        
+
         # Convert Omegaconf to dict
         del cfg['timestamp']
-        for key,value in cfg.items():
+        for key, value in cfg.items():
             df[key] = value
 
-        #df['is_plotting_enabled'] = cfg['is_plotting_enabled']
+        # df['is_plotting_enabled'] = cfg['is_plotting_enabled']
         df['error'] = outputs[0]['error']
         df['use_max_budget'] = use_max_budget
         # Add contraints as column
@@ -394,10 +419,10 @@ def main():
         df['instance'] = instance
         df['folder'] = folder.name
         df['is_skelarn'] = is_sklearn
-        #df['max_budget_per_task'] = cfg['max_budget_per_task']
-        #df['solution_iterations'] = cfg['solution_iterations']
+        # df['max_budget_per_task'] = cfg['max_budget_per_task']
+        # df['solution_iterations'] = cfg['solution_iterations']
         df['seed'] = cfg['seed']
-        #df['prompt_variation'] = cfg['prompt_variation']
+        # df['prompt_variation'] = cfg['prompt_variation']
         df['number_of_iterations'] = len(outputs[0]['history'])
         df['cumulative_number_of_completion_tokens'] = outputs[0]['metrics'][
             'accumulated_token_usage'
@@ -410,7 +435,7 @@ def main():
         )
         df['number_of_submissions'] = number_of_submissions
         df['final_accumulated_cost'] = accumulated_cost
-        
+
         # Convert folder.name to datetime
         # df["timestamp"] = datetime.strptime(folder.name.split("_")[0], "%Y-%m-%d")
         date_folder = folder.name.split('_')[0] + '_' + folder.name.split('_')[1]
@@ -458,17 +483,17 @@ def main():
     results_all['is_read_csv_banned'].fillna(False, inplace=True)
     results_all['results_got_right_at_first'] = 0
     results_all['results_got_right_at_first'] = results_all.apply(
-        lambda x: 1 if x['perfect_accuracy'] == 1 and x['number_of_submissions'] == 1 else 0,
-        axis=1
+        lambda x: 1
+        if x['perfect_accuracy'] == 1 and x['number_of_submissions'] == 1
+        else 0,
+        axis=1,
     )
     results_all['is_time_series_task'] = results_all['instance'].apply(
         lambda x: 1 if x in time_series_datasets else 0
     )
 
     # Keep only entries in the relevant tasks
-    results_all = results_all.loc[
-        results_all['instance'].isin(dataset)
-    ]
+    results_all = results_all.loc[results_all['instance'].isin(dataset)]
 
     results_all['best_metric'] = results_all['metric'].apply(
         lambda x: max(x) if len(x) > 0 else np.nan
@@ -480,34 +505,51 @@ def main():
     ]
     results_all = results_all.loc[~results_all['error'].isin(to_drop_errors)]
 
-    claude_model = results_all.loc[results_all['llm_config'] == "open_router_claude"]
+    claude_model = results_all.loc[results_all['llm_config'] == 'open_router_claude']
 
-    important_entries_claude = claude_model[["best_metric", "final_accumulated_cost", "error","instance","is_plotting_enabled","time","is_read_csv_banned"]]
+    important_entries_claude = claude_model[
+        [
+            'best_metric',
+            'final_accumulated_cost',
+            'error',
+            'instance',
+            'is_plotting_enabled',
+            'time',
+            'is_read_csv_banned',
+        ]
+    ]
 
     # Sort by instance
-    important_entries_claude = important_entries_claude.sort_values(
-        by=['instance'])
-    gemini_model = results_all.loc[results_all['llm_config'].isin(["gemini_pro","gemini_pro_pro","gemini_lite"])] # Important from 2025-05-12 01:00:23 to 2025-05-12 01:43:54
+    important_entries_claude = important_entries_claude.sort_values(by=['instance'])
+    gemini_model = results_all.loc[
+        results_all['llm_config'].isin(['gemini_pro', 'gemini_pro_pro', 'gemini_lite'])
+    ]  # Important from 2025-05-12 01:00:23 to 2025-05-12 01:43:54
     before_indetifier_idea = gemini_model.loc[
-        (gemini_model['time'] > datetime.strptime('2025-05-12 01:00:15', '%Y-%m-%d %H:%M:%S')) & (gemini_model['time'] < datetime.strptime('2025-05-12 14:10:54', '%Y-%m-%d %H:%M:%S'))
+        (
+            gemini_model['time']
+            > datetime.strptime('2025-05-12 01:00:15', '%Y-%m-%d %H:%M:%S')
+        )
+        & (
+            gemini_model['time']
+            < datetime.strptime('2025-05-12 14:10:54', '%Y-%m-%d %H:%M:%S')
+        )
     ]
-     # Remove any entry where number is disabled
-    before_indetifier_idea = before_indetifier_idea.loc[gemini_model['disable_numbers'] == False] 
-
+    # Remove any entry where number is disabled
+    before_indetifier_idea = before_indetifier_idea.loc[
+        gemini_model['disable_numbers'] == False
+    ]
 
     # Get also the runs with the idenfifier
-    
-    other_runs = results_all.loc[results_all["identifier_experiment"] == "paper"]
+
+    other_runs = results_all.loc[results_all['identifier_experiment'] == 'paper']
 
     # Concat this two
     df = pd.concat([before_indetifier_idea, other_runs], ignore_index=True, axis=0)
 
     # important_entries_gemini = gemini_model[["best_metric", "final_accumulated_cost", "error","instance","is_plotting_enabled","time","is_read_csv_banned","give_structure_hint","number_of_submissions","results_got_right_at_first","is_time_series_task","perfect_accuracy","llm_config","metric"]]
 
-
-
     # TABLE 1
- 
+
     def table_1(df: pd.DataFrame) -> str:
         """
         Build the LaTeX table for Section “Agents are not able to explore effectively”.
@@ -520,9 +562,14 @@ def main():
         # -------------------------------------------------------------------------
         # 1. Aggregate: mean perfect-accuracy for every model / task combination
         # -------------------------------------------------------------------------
-        df = df.loc[~df["give_structure_hint"]]    # drop rows that used structure hints
+        df = df.loc[~df['give_structure_hint']]  # drop rows that used structure hints
         groups = df.groupby(
-            ['is_plotting_enabled', 'is_time_series_task', 'llm_config', 'give_structure_hint']
+            [
+                'is_plotting_enabled',
+                'is_time_series_task',
+                'llm_config',
+                'give_structure_hint',
+            ]
         )
         table1_df = []
         for name, group_df in groups:
@@ -536,39 +583,39 @@ def main():
                     'mean_perfect_accuracy': mean,
                     'number_of_submissions': group_df['number_of_submissions'].mean(),
                     'count': number_of_rows,
-                    'metrics': group_df['metric'].tolist()
-                    }
+                    'metrics': group_df['metric'].tolist(),
+                }
             )
 
-        table1_df = pd.DataFrame(table1_df) 
-        
+        table1_df = pd.DataFrame(table1_df)
+
         agg = (
-            df.groupby(
-                ["llm_config", "is_time_series_task", "is_plotting_enabled"]
-            )["perfect_accuracy"]
+            df.groupby(['llm_config', 'is_time_series_task', 'is_plotting_enabled'])[
+                'perfect_accuracy'
+            ]
             .mean()
-            .unstack(["is_time_series_task", "is_plotting_enabled"])
+            .unstack(['is_time_series_task', 'is_plotting_enabled'])
         )
 
         # Desired column order: (time-series, plots) … (tabular, no-plots)
         COLS = [(1, True), (1, False), (0, True), (0, False)]
-        for col in COLS:          # ensure all four columns exist
+        for col in COLS:  # ensure all four columns exist
             if col not in agg.columns:
                 agg[col] = np.nan
-        agg = agg[COLS]           # reorder
+        agg = agg[COLS]  # reorder
 
         # -------------------------------------------------------------------------
         # 2. Pretty names & percentage formatting
         # -------------------------------------------------------------------------
         name_map = {
-            "gemini_pro":      "Gemini Flash 2.5",
-            "gemini_pro_pro":  "Gemini Pro 2.5",
-            "gemini_lite":     "Gemini Lite 2.5",
+            'gemini_pro': 'Gemini Flash 2.5',
+            'gemini_pro_pro': 'Gemini Pro 2.5',
+            'gemini_lite': 'Gemini Lite 2.5',
         }
 
         def fmt(x: float | np.floating | float) -> str:
             """Int-percent with trailing ‘%’, or en-dash if NaN."""
-            return "--" if pd.isna(x) else f"{int(round(100 * x))}\\%"
+            return '--' if pd.isna(x) else f'{int(round(100 * x))}\\%'
 
         # -------------------------------------------------------------------------
         # 3. Assemble LaTeX
@@ -585,14 +632,14 @@ def main():
                     \cmidrule(lr){2-3}\cmidrule(lr){4-5}
                     \textbf{Model} & \textbf{Plots Enabled} & \textbf{No Plots} & \textbf{Plots Enabled} & \textbf{No Plots} \\
                     \midrule
-            """.lstrip("\n")
+            """.lstrip('\n')
 
-        rows = "\n".join(
-            f"        {name_map[m]} & "
-            + " & ".join(fmt(agg.loc[m, col]) for col in COLS)
-            + r" \\"
+        rows = '\n'.join(
+            f'        {name_map[m]} & '
+            + ' & '.join(fmt(agg.loc[m, col]) for col in COLS)
+            + r' \\'
             for m in name_map
-            if m in agg.index            # keep only models present in the data
+            if m in agg.index  # keep only models present in the data
         )
 
         footer = r"""
@@ -601,16 +648,13 @@ def main():
             \bottomrule
         \end{tabular}
     \end{table}
-    """.lstrip("\n")
-        return header + rows + "\n" + footer
+    """.lstrip('\n')
+        return header + rows + '\n' + footer
 
     # ----------------------------------------------------------------------
     # Example usage
     entry = table_1(df)
     # print(entry)
-    
-        
-
 
     def table_2(df: pd.DataFrame) -> str:
         """
@@ -622,33 +666,37 @@ def main():
         """
 
         import pandas as pd
-        from typing import List
 
         # ------------------------------------------------------------------ #
         # 1. Pivot the data: rows = model, columns = (is_time_series_task, give_structure_hint)
         pivot = (
-            df.groupby(["llm_config", "is_time_series_task", "give_structure_hint"])
-            ["perfect_accuracy"]
+            df.groupby(['llm_config', 'is_time_series_task', 'give_structure_hint'])[
+                'perfect_accuracy'
+            ]
             .mean()
-            .unstack(level=["is_time_series_task", "give_structure_hint"])
+            .unstack(level=['is_time_series_task', 'give_structure_hint'])
         )
 
         # ------------------------------------------------------------------ #
         # 2. Row/column bookkeeping
-        MODELS: List[str] = ["gemini_pro", "gemini_pro_pro"]
+        MODELS: List[str] = ['gemini_pro', 'gemini_pro_pro']
         NAME_MAP = {
-            "gemini_pro":     "Gemini Flash 2.5",
-            "gemini_pro_pro": "Gemini Pro 2.5",
+            'gemini_pro': 'Gemini Flash 2.5',
+            'gemini_pro_pro': 'Gemini Pro 2.5',
         }
 
         # Only two values from the pivot: (ts, False/True) and (tab, False/True)
         COLS = [
-            (1, False), (1, True),  "MISSING",  # TS
-            (0, False), (0, True),  "MISSING",  # TAB
+            (1, False),
+            (1, True),
+            'MISSING',  # TS
+            (0, False),
+            (0, True),
+            'MISSING',  # TAB
         ]
 
         def fmt(x):
-            return "--" if pd.isna(x) else f"{int(round(100 * x))}\\%"
+            return '--' if pd.isna(x) else f'{int(round(100 * x))}\\%'
 
         # ------------------------------------------------------------------ #
         # 3. Build LaTeX
@@ -664,22 +712,26 @@ def main():
             \textbf{Model} & \textbf{Baseline} & \textbf{Structure hint} & \textbf{Constraint}
                         & \textbf{Baseline} & \textbf{Structure hint} & \textbf{Constraint} \\
             \midrule
-        """.lstrip("\n")
+        """.lstrip('\n')
 
         rows = []
         for m in MODELS:
             vals = []
             for c in COLS:
-                if c == "MISSING":
-                    vals.append("--")
+                if c == 'MISSING':
+                    vals.append('--')
                 else:
                     vals.append(
-                        fmt(pivot.loc[m, c] if (m in pivot.index and c in pivot.columns) else float("nan"))
+                        fmt(
+                            pivot.loc[m, c]
+                            if (m in pivot.index and c in pivot.columns)
+                            else float('nan')
+                        )
                     )
-            rows.append(f"        {NAME_MAP[m]:<17} & " + " & ".join(vals) + r" \\")
+            rows.append(f'        {NAME_MAP[m]:<17} & ' + ' & '.join(vals) + r' \\')
 
         # Placeholder rows
-        placeholder = "-- & -- & -- & -- & -- & -- \\\\"
+        placeholder = '-- & -- & -- & -- & -- & -- \\\\'
         rows.append(f"        o3{' ' * 15} & {placeholder}")
         rows.append(f"        Sonnet 3.7{' ' * 6} & {placeholder}")
 
@@ -688,16 +740,15 @@ def main():
         \end{tabular}
         \caption{Agents do not leverage privileged information nor explore effectively.}
     \end{table}
-    """.lstrip("\n")
+    """.lstrip('\n')
 
-        return header + "\n".join(rows) + "\n" + footer
-
+        return header + '\n'.join(rows) + '\n' + footer
 
     # ----------------------------------------------------------------------
     # Example usage
     entry = table_2(df)
     print(entry)
-   
+
     results_all['best_metric'] = results_all['metric'].apply(
         lambda x: max(x) if len(x) > 0 else np.nan
     )

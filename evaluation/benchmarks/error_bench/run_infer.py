@@ -293,7 +293,7 @@ def process_instance(
             metadata_json = json.load(f)
         instruction = metadata_json[f"prompt_{cfg['prompt_variation']}"] + ' \n'
 
-        #instruction += 'Your prediction should be based on a single explainable and deterministic hand-crafted feature that you have computed on the data, that paired with a decision classifier should be enough to solve the task.'
+        # instruction += 'Your prediction should be based on a single explainable and deterministic hand-crafted feature that you have computed on the data, that paired with a decision classifier should be enough to solve the task.'
         instruction += 'The datasets are located at /workspace/train.csv and /workspace/test.csv, the labels are located at /workspace/train_labels.csv. The test set labels are not available. \n'
         instruction += 'After computing your feature, save the engineered feature for the training set to /workspace/train_engineered_feature.csv and for the test set to /workspace/test_engineered_feature.csv. \n'
 
@@ -312,17 +312,22 @@ def process_instance(
             if metadata_json['is_time_series']:
                 instruction += 'The dataset is a time series dataset. You need to take into account the time series nature of the data. \n'
             else:
-                instruction += 'The dataset is not a time series dataset'
+                instruction += 'The dataset is not a time series dataset. \n'
         instruction += 'Your goal is to achieve an accuracy as high as possible in the test set. \n'
         if cfg.is_sklearn_banned:
             if cfg.is_plotting_enabled:
-                instruction += 'You can use only numpy, pandas and matplotlib.  NO OTHER LIBRARY IS ALLOWED. \n'
+                instruction += 'You can use only numpy, pandas and matplotlib (Use plt.show() to visualize a plot).  NO OTHER LIBRARY IS ALLOWED. \n'
             else:
-                instruction += (
-                    'You can use only numpy and pandas. You are not allowed to use any other library or generate plots.\n'
-                )
+                instruction += 'You can use only numpy and pandas. You are not allowed to use any other library or generate plots.\n'
+        else:
+            if cfg.is_plotting_enabled:
+                instruction += 'You can use only numpy, pandas, sklearn and matplotlib  (Use plt.show() to visualize a plot).  NO OTHER LIBRARY IS ALLOWED. \n'
+            else:
+                instruction += 'You can use only numpy, pandas and sklearn. You are not allowed to use any other library or generate plots.\n'
         if cfg.is_read_csv_banned:
-            instruction += 'Additionally, you are not allowed to use the pandas read_csv function'
+            instruction += (
+                'Additionally, you are not allowed to use the pandas pd.read_csv function'
+            )
         # else:
         #     instruction = """You are an expert providing assistance the following dataset. Given the following dataset comprising time series, your task is to identify the features that separate two classes the most.
         #     """
@@ -373,7 +378,7 @@ def process_instance(
     else:
         instruction += 'You will not receive any feedback on your solution on the test set, so make sure you are confident about your solution before submitting it. \n'
 
-    if cfg.show_max_budget_per_task: 
+    if cfg.show_max_budget_per_task:
         instruction += f' You have a maximum of {cfg.max_budget_per_task} US Dollars to solve the task. \n'
 
     if cfg.include_constraints:
@@ -394,7 +399,9 @@ def process_instance(
         instruction += "You can't look at y_test.csv or any other file that contains the y ground truth. But you can look at test.csv.\n"
 
     if cfg.only_plots and cfg.is_plotting_enabled:
-        assert cfg.is_plotting_enabled, 'This option is only available when plotting is enabled'
+        assert (
+            cfg.is_plotting_enabled
+        ), 'This option is only available when plotting is enabled'
         instruction += "In order to solve the task, you can only use plots. You can't print anything, you can only only render plots. \n"
 
     if cfg.is_explaination_and_intepretation_included:

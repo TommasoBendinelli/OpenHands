@@ -176,7 +176,7 @@ def main():
 
         if (
             outputs[0]['error']
-            and "RuntimeError: Agent reached maximum budget" in outputs[0]['error']
+            and 'RuntimeError: Agent reached maximum budget' in outputs[0]['error']
         ):
             outputs[0]['error'] = None
             use_max_budget = True
