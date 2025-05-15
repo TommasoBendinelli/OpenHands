@@ -1,39 +1,40 @@
 import os
-import pandas as pd
-import matplotlib.pyplot as plt
+
 import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
+import pandas as pd
 
 time_series_datasets = [
-    "find_peaks",
-    "periodic_presence",
-    "predict_ts_stationarity",
-    "set_points",
-    "simultanus_spike",
-    "spike_presence",
-    "variance_burst",
-    "zero_crossing",
+    'find_peaks',
+    'periodic_presence',
+    'predict_ts_stationarity',
+    'set_points',
+    'simultanus_spike',
+    'spike_presence',
+    'variance_burst',
+    'zero_crossing',
 ]
 
 time_series_datasets_v2 = [
     # "find_peaks",
-    "periodic_presence",
-    "predict_ts_stationarity",
-    "set_points",
+    'periodic_presence',
+    'predict_ts_stationarity',
+    'set_points',
     # "simultanus_spike",
     # "spike_presence",
-    "variance_burst",
+    'variance_burst',
     # "zero_crossing",
 ]
 
 tabular_datasets = [
-    "cofounded_group_outlier",
-    "dominant_feature",
-    "ground_mean_threshold",
-    "outlier_ratio",
-    "row_max_abs",
-    "row_variance",
-    "sign_rotated_generator",
-    "sum_threshold",
+    'cofounded_group_outlier',
+    'dominant_feature',
+    'ground_mean_threshold',
+    'outlier_ratio',
+    'row_max_abs',
+    'row_variance',
+    'sign_rotated_generator',
+    'sum_threshold',
 ]
 
 
@@ -103,8 +104,8 @@ def main():
 
     for i, dataset_dir in enumerate(time_series_datasets_v2):
         # Read the CSV files
-        train_path = os.path.join(dataset_dir, "train.csv")
-        labels_path = os.path.join(dataset_dir, "train_labels.csv")
+        train_path = os.path.join(dataset_dir, 'train.csv')
+        labels_path = os.path.join(dataset_dir, 'train_labels.csv')
 
         train_df = pd.read_csv(train_path)  # no header
         labels_df = pd.read_csv(labels_path)
@@ -155,7 +156,7 @@ def main():
     # plt.subplots_adjust(wspace=60, hspace=0.03)
     # plt.tight_layout()
     plt.savefig(
-        "overview_fig_timeseries_4.png", dpi=300, bbox_inches='tight', pad_inches=0
+        'overview_fig_timeseries_4.png', dpi=300, bbox_inches='tight', pad_inches=0
     )
 
     return

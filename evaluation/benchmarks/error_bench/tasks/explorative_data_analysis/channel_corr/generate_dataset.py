@@ -1,13 +1,14 @@
 #!/usr/bin/env python
+import random
 import sys
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import random
+
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from utils import save_datasets   # noqa: E402
+from utils import save_datasets  # noqa: E402
 
 
 def channels_correlated(x_flat: np.ndarray, length: int, thresh: float = 0.6) -> int:
@@ -64,8 +65,9 @@ def generate_sample(corr: bool, length: int = 300, noise: float = 0.4):
     return np.concatenate([ch1, ch2])
 
 
-def create_dataset(n_samples: int = 200, length: int = 300,
-                   output_folder = 'corr_dataset.csv'):
+def create_dataset(
+    n_samples: int = 200, length: int = 300, output_folder='corr_dataset.csv'
+):
     data, labels = [], []
     for _ in range(n_samples // 2):
         data.append(generate_sample(True, length))
@@ -87,15 +89,17 @@ if __name__ == '__main__':
     random.seed(42)
     out_dir = Path(__file__).resolve().parent
     train_df = create_dataset(output_folder=out_dir)
-    test_df  = create_dataset(n_samples=200, length=500, output_folder=out_dir)
+    test_df = create_dataset(n_samples=200, length=500, output_folder=out_dir)
     save_datasets(train_df, test_df, out_dir)
 
     # quick sanity-check plot
     plt.figure(figsize=(10, 4))
     for i, title in zip([0, 1], ['Correlated (label 0)', 'Uncorrelated (label 1)']):
         plt.subplot(1, 2, i + 1)
-        plt.plot(train_df.iloc[i, :train_df.shape[1] // 2], label='channel A')
-        plt.plot(train_df.iloc[i, train_df.shape[1] // 2:-1], label='channel B')
-        plt.title(title); plt.legend()
-    plt.tight_layout(); plt.show()
+        plt.plot(train_df.iloc[i, : train_df.shape[1] // 2], label='channel A')
+        plt.plot(train_df.iloc[i, train_df.shape[1] // 2 : -1], label='channel B')
+        plt.title(title)
+        plt.legend()
+    plt.tight_layout()
+    plt.show()
     plt.savefig(out_dir / 'corr_dataset_example.png')

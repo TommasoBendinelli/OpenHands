@@ -1,8 +1,7 @@
 import os
-import pandas as pd
+
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-from mpl_toolkits.mplot3d import Axes3D
+import pandas as pd
 
 # tabular_datasets = [
 #     # "cofounded_group_outlier",
@@ -169,10 +168,10 @@ def main():
 
     # Your dataset list
     tabular_datasets = [
-        "dominant_feature",
-        "outlier_ratio",
-        "sign_rotated_generator",
-        "ground_mean_threashold",
+        'dominant_feature',
+        'outlier_ratio',
+        'sign_rotated_generator',
+        'ground_mean_threashold',
         # "sum_threshold",
     ]
 
@@ -212,8 +211,8 @@ def main():
         ax = axes[i]
 
         # Read the CSV files
-        train_path = os.path.join(dataset_dir, "train.csv")
-        labels_path = os.path.join(dataset_dir, "train_labels.csv")
+        train_path = os.path.join(dataset_dir, 'train.csv')
+        labels_path = os.path.join(dataset_dir, 'train_labels.csv')
 
         train_df = pd.read_csv(train_path)  # no header assumed
         labels_df = pd.read_csv(labels_path)
@@ -222,28 +221,28 @@ def main():
         train_df['label'] = labels_df['label']
 
         # Plotting for different datasets
-        if dataset_dir == "outlier_ratio":
+        if dataset_dir == 'outlier_ratio':
 
             def outlier_ratio(df):
                 return (
                     df.assign(is_out=lambda d: d.signal.abs() > OUTLIER_CUTOFF)
-                    .groupby("group_id")["is_out"]
+                    .groupby('group_id')['is_out']
                     .mean()
                 )
 
             r = outlier_ratio(train_df)
-            y_grp = train_df.groupby("group_id")["label"].first()
+            y_grp = train_df.groupby('group_id')['label'].first()
 
-            ax.hist(r[y_grp == 0], bins=10, alpha=ALPHA, label="label 0", width=0.001)
-            ax.hist(r[y_grp == 1], bins=10, alpha=ALPHA, label="label 1", width=0.001)
-            ax.axvline(THRESH_RATIO, ls="--", c="k", lw=LINE_WIDTH)
+            ax.hist(r[y_grp == 0], bins=10, alpha=ALPHA, label='label 0', width=0.001)
+            ax.hist(r[y_grp == 1], bins=10, alpha=ALPHA, label='label 1', width=0.001)
+            ax.axvline(THRESH_RATIO, ls='--', c='k', lw=LINE_WIDTH)
 
-            ax.set_xlabel("outlier ratio |signal|>3", fontsize=FONT_SIZE_LABEL)
-            ax.set_ylabel("# groups", fontsize=FONT_SIZE_LABEL)
+            ax.set_xlabel('outlier ratio |signal|>3', fontsize=FONT_SIZE_LABEL)
+            ax.set_ylabel('# groups', fontsize=FONT_SIZE_LABEL)
             ax.set_title(dataset_dir, fontsize=FONT_SIZE_TITLE)
             ax.tick_params(axis='both', labelsize=FONT_SIZE_TICKS)
 
-        elif dataset_dir == "dominant_feature":
+        elif dataset_dir == 'dominant_feature':
             ax.remove()
             ax = fig.add_subplot(2, 2, i + 1, projection='3d')
 
@@ -268,7 +267,7 @@ def main():
             box = ax.get_position()
             ax.set_xlabel('Feature 1', fontsize=FONT_SIZE_LABEL)
             ax.set_ylabel('Feature 2', fontsize=FONT_SIZE_LABEL)
-            #ax.set_zlabel('Feature 3', fontsize=FONT_SIZE_LABEL)
+            # ax.set_zlabel('Feature 3', fontsize=FONT_SIZE_LABEL)
             ax.xaxis.labelpad = -8
             ax.yaxis.labelpad = -8
             ax.zaxis.labelpad = -8
@@ -276,21 +275,21 @@ def main():
             ax.tick_params(axis='both', pad=-3, labelsize=FONT_SIZE_TICKS)
             # ax.set_position([box.x0 + 0.1, box.y0, box.width, box.height])
 
-        elif dataset_dir == "sign_rotated_generator":
-            same = train_df["label"] == 1
+        elif dataset_dir == 'sign_rotated_generator':
+            same = train_df['label'] == 1
             ax.scatter(
-                train_df.loc[same, "feat1"],
-                train_df.loc[same, "feat2"],
+                train_df.loc[same, 'feat1'],
+                train_df.loc[same, 'feat2'],
                 alpha=ALPHA,
                 s=SCATTER_SIZE,
-                label="label 1",
+                label='label 1',
             )
             ax.scatter(
-                train_df.loc[~same, "feat1"],
-                train_df.loc[~same, "feat2"],
+                train_df.loc[~same, 'feat1'],
+                train_df.loc[~same, 'feat2'],
                 alpha=ALPHA,
                 s=SCATTER_SIZE,
-                label="label 0",
+                label='label 0',
             )
 
             ax.axhline(0, c='k', lw=LINE_WIDTH)
@@ -301,7 +300,7 @@ def main():
             ax.set_title(dataset_dir, fontsize=FONT_SIZE_TITLE)
             ax.tick_params(axis='both', labelsize=FONT_SIZE_TICKS)
 
-        elif dataset_dir == "ground_mean_threashold":
+        elif dataset_dir == 'ground_mean_threashold':
             N_GROUPS = 120
             ROWS_PER_GRP = 20
             HIGH_ROW_FRAC = 0.60  # fraction of “high-μ” rows in a positive group
@@ -310,34 +309,36 @@ def main():
             THRESH = 3.0
             DISTRACTOR_COLS = 3
 
-            grp_mean = train_df.groupby("group_id")["value_0"].mean()
-            grp_label = train_df.groupby("group_id")["label"].first()
+            grp_mean = train_df.groupby('group_id')['value_0'].mean()
+            grp_label = train_df.groupby('group_id')['label'].first()
 
             ax.hist(
                 grp_mean[grp_label == 0],
                 bins=30,
                 alpha=ALPHA,
-                label="label 0",
+                label='label 0',
                 width=BAR_WIDTH,
             )
             ax.hist(
                 grp_mean[grp_label == 1],
                 bins=30,
                 alpha=ALPHA,
-                label="label 1",
+                label='label 1',
                 width=BAR_WIDTH,
             )
-            ax.axvline(THRESH, ls="--", c="k", lw=LINE_WIDTH)
+            ax.axvline(THRESH, ls='--', c='k', lw=LINE_WIDTH)
 
-            ax.set_xlabel("group mean of value_0", fontsize=FONT_SIZE_LABEL)
-            ax.set_ylabel("# groups", fontsize=FONT_SIZE_LABEL)
+            ax.set_xlabel('group mean of value_0', fontsize=FONT_SIZE_LABEL)
+            ax.set_ylabel('# groups', fontsize=FONT_SIZE_LABEL)
             ax.set_title(dataset_dir, fontsize=FONT_SIZE_TITLE)
             ax.tick_params(axis='both', labelsize=FONT_SIZE_TICKS)
 
     # Layout adjustment
-    #plt.tight_layout(pad=0.01, w_pad=0.01, h_pad=0.01)
+    # plt.tight_layout(pad=0.01, w_pad=0.01, h_pad=0.01)
     plt.tight_layout()
-    plt.savefig("overview_fig_tabular_4_smaller_smaller.png", dpi=300, bbox_inches='tight')
+    plt.savefig(
+        'overview_fig_tabular_4_smaller_smaller.png', dpi=300, bbox_inches='tight'
+    )
 
     return
 

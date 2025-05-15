@@ -142,9 +142,11 @@ METADATA_JSON = 'metadata.json'
 OUTPUT_JSON = 'output.jsonl'
 
 solutions = {
-    "find_peaks": "The correct feature is to use the number of peaks in the signal to tell the class of the signal.",
-    "predict_ts_stationarity": "The correct feature is to tell whether the time series is stationary or not.",
+    'find_peaks': 'The correct feature is to use the number of peaks in the signal to tell the class of the signal.',
+    'predict_ts_stationarity': 'The correct feature is to tell whether the time series is stationary or not.',
 }
+
+
 def main():
     folders = sorted(_iter_result_folders(ROOT_DIR, CUTOFF))
     # Iterate over the folders
@@ -154,9 +156,7 @@ def main():
         # Open metadata
         metadata, outputs, cfg = _load_experiment(folder)
 
-        
-
-        msg_txt = "\n".join([x["message"] for x in outputs[0]["history"][2:]])
+        msg_txt = '\n'.join([x['message'] for x in outputs[0]['history'][2:]])
         breakpoint()
         metric = outputs[0]['test_result']['result']['metric']
         res = {
@@ -168,5 +168,7 @@ def main():
 
     df = pd.DataFrame.from_records([res])
     breakpoint()
+
+
 if __name__ == '__main__':
     main()

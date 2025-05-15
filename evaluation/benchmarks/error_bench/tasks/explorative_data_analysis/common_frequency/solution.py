@@ -25,8 +25,8 @@ test 768) but never decreases.
 
 from __future__ import annotations
 
-from pathlib import Path
 import random
+from pathlib import Path
 from typing import Sequence
 
 import numpy as np
@@ -36,6 +36,7 @@ from sklearn.tree import DecisionTreeClassifier
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
+
 
 def dominant_freq(signal: Sequence[float], fs: float = 1.0) -> float:
     """Return the frequency (Hz) with maximum power in *signal*."""
@@ -51,8 +52,8 @@ def dominant_freq(signal: Sequence[float], fs: float = 1.0) -> float:
 def diff_feature(df: pd.DataFrame) -> np.ndarray:
     """Return (n_samples, 1) array with |f_dom_ch1 − f_dom_ch2| per row."""
     # Identify columns by prefix (robust to variable lengths).
-    ch1_cols = [c for c in df.columns if c.startswith("a_")]
-    ch2_cols = [c for c in df.columns if c.startswith("b_")]
+    ch1_cols = [c for c in df.columns if c.startswith('a_')]
+    ch2_cols = [c for c in df.columns if c.startswith('b_')]
 
     X1 = df[ch1_cols].to_numpy()
     X2 = df[ch2_cols].to_numpy()
@@ -68,15 +69,13 @@ def diff_feature(df: pd.DataFrame) -> np.ndarray:
 
 def load_split(folder: Path, split: str):
     """Load feature matrix *X* and label vector *y* for the given *split*."""
-    X = pd.read_csv(folder / f"{split}.csv")
+    X = pd.read_csv(folder / f'{split}.csv')
 
-    y_file = folder / (
-        f"{split}_labels.csv" if split == "train" else f"{split}_gt.csv"
-    )
+    y_file = folder / (f'{split}_labels.csv' if split == 'train' else f'{split}_gt.csv')
     if y_file.exists():
-        y = pd.read_csv(y_file)["label"].to_numpy()
+        y = pd.read_csv(y_file)['label'].to_numpy()
     else:
-        y = X.pop("label").to_numpy()
+        y = X.pop('label').to_numpy()
 
     return X, y
 
@@ -85,6 +84,7 @@ def load_split(folder: Path, split: str):
 # Main
 # --------------------------------------------------------------------------- #
 
+
 def main():
     random.seed(0)
     np.random.seed(0)
@@ -92,8 +92,8 @@ def main():
     here = Path(__file__).resolve().parent
 
     # ----- data ------------------------------------------------------------- #
-    X_train, y_train = load_split(here, "train")
-    X_test, y_test = load_split(here, "test")
+    X_train, y_train = load_split(here, 'train')
+    X_test, y_test = load_split(here, 'test')
 
     f_train = diff_feature(X_train)
     f_test = diff_feature(X_test)
@@ -103,10 +103,10 @@ def main():
     clf.fit(f_train, y_train)
 
     # ----- results ---------------------------------------------------------- #
-    print(f"Learned threshold on |Δf| feature: {clf.tree_.threshold[0]:.5f} Hz")
-    print(f"Train accuracy : {clf.score(f_train, y_train):.2%}")
-    print(f"Test  accuracy : {clf.score(f_test, y_test):.2%}")
+    print(f'Learned threshold on |Δf| feature: {clf.tree_.threshold[0]:.5f} Hz')
+    print(f'Train accuracy : {clf.score(f_train, y_train):.2%}')
+    print(f'Test  accuracy : {clf.score(f_test, y_test):.2%}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

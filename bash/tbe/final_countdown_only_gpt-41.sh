@@ -43,7 +43,7 @@ for instance in "${instances[@]}"; do
     give_structure_hint=False \
     disable_numbers=False \
     is_read_csv_banned=False \
-    identifier_experiment="baseline_native_tool_calling" 
+    identifier_experiment="baseline_native_tool_calling"
 done
 
 
@@ -114,4 +114,3 @@ done
 #   is_read_csv_banned=True \
 #   identifier_experiment="constraint" \
 #   -m
-

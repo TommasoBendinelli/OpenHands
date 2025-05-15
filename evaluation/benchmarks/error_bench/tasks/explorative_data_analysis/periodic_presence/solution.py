@@ -19,10 +19,11 @@ Overview
   the train split to find the optimal cut(s).  Empirically this yields **100 %**
   accuracy on both train and test under the generator v2.
 """
+
 from __future__ import annotations
 
-from pathlib import Path
 import random
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -58,12 +59,12 @@ def crest_and_flatness(df: pd.DataFrame) -> np.ndarray:
 
 
 def load_split(folder: Path, split: str):
-    X = pd.read_csv(folder / f"{split}.csv")
-    y_file = folder / (f"{split}_labels.csv" if split == "train" else f"{split}_gt.csv")
+    X = pd.read_csv(folder / f'{split}.csv')
+    y_file = folder / (f'{split}_labels.csv' if split == 'train' else f'{split}_gt.csv')
     if y_file.exists():
-        y = pd.read_csv(y_file)["label"].values
+        y = pd.read_csv(y_file)['label'].values
     else:
-        y = X.pop("label").values
+        y = X.pop('label').values
     return X, y
 
 
@@ -72,8 +73,8 @@ def main():
     np.random.seed(0)
     folder = Path(__file__).resolve().parent
 
-    X_train, y_train = load_split(folder, "train")
-    X_test, y_test = load_split(folder, "test")
+    X_train, y_train = load_split(folder, 'train')
+    X_test, y_test = load_split(folder, 'test')
 
     f_train = crest_and_flatness(X_train)
     f_test = crest_and_flatness(X_test)
@@ -83,12 +84,12 @@ def main():
 
     # print learned rule for curiosity
     thresh = clf.tree_.threshold
-    print(f"Tree thresholds: {thresh[0]:.3f}, {thresh[1]:.3f}")
+    print(f'Tree thresholds: {thresh[0]:.3f}, {thresh[1]:.3f}')
 
     acc_train = clf.score(f_train, y_train)
     acc_test = clf.score(f_test, y_test)
-    print(f"Train accuracy: {acc_train:.2f}\nTest  accuracy: {acc_test:.2f}")
+    print(f'Train accuracy: {acc_train:.2f}\nTest  accuracy: {acc_test:.2f}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
