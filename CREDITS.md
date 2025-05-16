@@ -1,5 +1,7 @@
 # Credits
 
+Our codebase is build on an opensource project. We appreciate the contributors
+
 ## Contributors
 
 We would like to thank all the [contributors](https://github.com/All-Hands-AI/OpenHands/graphs/contributors) who have helped make OpenHands possible. We greatly appreciate your dedication and hard work.
