@@ -71,7 +71,7 @@ def create_croissant_dataset_with_library(base_path, output_json_file):
     All datasets include both training and test splits with consistent labeling, making them suitable for supervised learning evaluations and benchmarking.
     """
     # This should be a unique, persistent URL identifying your dataset
-    dataset_url = "https://example.com/datasets/my-multi-subtask-dataset-mlc"
+    dataset_url = "https://anonymous.4open.science/r/ExplorationDataAnalysis-EDx17/evaluation/benchmarks/error_bench/tasks"
     creator_name = "Tommaso Bendinelli"
     creator_email = "tommaben@ethz.ch"
     # Use SPDX identifiers (e.g., "apache-2.0", "mit") or a URL to a custom license
