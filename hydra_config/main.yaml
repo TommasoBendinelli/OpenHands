@@ -15,7 +15,7 @@ template_text: False
 enable_browsing_for_pictures: False
 cheating_attempt: False
 warm_against_cheating: False
-max_budget_per_task: 0
+max_budget_per_task: 1
 prompt_variation: 0
 seed: 0
 show_solution_iterations: True
