@@ -25,10 +25,10 @@ Hydra is located in the folder hydra_config the important parameters to replicat
 You can then use the trajectory visualizer from openhands to visualize the trajectories.
 Additionally results are saved in the folder: evaluation/evaluation_outputs/outputs
 # Where to find the datasets
-The 17 datasetsof EDx17 are stored `evaluation/benchmarks/error_bench/tasks/explorative_data_analysis`. 
+The 17 datasets of EDx17 are stored `evaluation/benchmarks/error_bench/tasks/explorative_data_analysis`. 
 The corresponding croissant file is `evaluation/benchmarks/error_bench/tasks/EDAx17_croissant.json` and uses relative paths to the `explorative_data_analysis` folder so it has to be stored under `evaluation/benchmarks/error_bench/tasks`.
 
-We will ensure long term hosting and access of the data upon submission through huggingface. 
+We will ensure long term hosting and access of the data upon acceptance through huggingface. 
 
 Each of the folders in `evaluation/benchmarks/error_bench/tasks/explorative_data_analysis` contains one of the existing datasets comprising of four `.csv` files and a `generate_dataset.py` which can be used to regenerate the data.
 In case there is issues with the croissant dataset you can regenerate the `croissant.json` with the `croissant/create_croissant_dataset.py`
