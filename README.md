@@ -34,5 +34,5 @@ Each of the folders in `evaluation/benchmarks/error_bench/tasks/explorative_data
 In case there is issues with the croissant dataset you can regenerate the `croissant.json` with the `croissant/create_croissant_dataset.py`
 script.
 
-# OpenSource
-Our repository is based on a large OpenSource repository, please ignore files not mentioned by the README and follow only instructions found in this readme to run the experiments. For specific issues we refer to the OpenHands repository (https://github.com/All-Hands-AI/OpenHands)
+# Code Base
+Our repository is based on the large OpenHands repository, please ignore files not mentioned by the README and follow only instructions found in this readme to run the experiments. For specific issues we refer to the OpenHands repository (https://github.com/All-Hands-AI/OpenHands)
