@@ -33,6 +33,7 @@ is_plotting_enabled: True
 is_read_csv_banned: False
 give_structure_hint: False
 is_explaination_and_intepretation_included: false
+explain_plot: False
 only_plots: false
 identifier_experiment: propotypying
 # Inject current date and time as YYYY-MM-DD_HH-MM-SS
@@ -44,7 +45,7 @@ hydra:
   job:
     chdir: false
   launcher:
-    n_jobs: 2    # <-- limit to 2 parallel runs
+    n_jobs: 1    # <-- limit to 2 parallel runs
 
 defaults:
   - override hydra/launcher: joblib

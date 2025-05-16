@@ -1,78 +1,83 @@
 # /workspace/OpenHands/call_error_agent_completion.py
 
+
 import argparse
 import os
 import sys
 
 import toml
 from omegaconf import OmegaConf
+from dataclasses import fields
 from unittest.mock import MagicMock
 
-try:
-    from openhands.agenthub.error_bench_agent.error_agent import ErrorAgent
-    from openhands.core.config import AgentConfig, LLMConfig
-    from openhands.core.logger import openhands_logger as logger
-    from openhands.llm.llm import LLM
-    from openhands.controller.state.state import State
-    from openhands.core.message import Message, TextContent
-    from openhands.events.action import MessageAction
-    from openhands.events.event import EventSource
-except ImportError as e:
-    print(f'Error importing OpenHands modules: {e}\nPYTHONPATH: {sys.path}')
-    sys.exit(1)
+from openhands.agenthub.error_bench_agent.error_agent import ErrorAgent
+from openhands.core.config import AgentConfig, LLMConfig
+from openhands.core.logger import openhands_logger as logger
+from openhands.llm.llm import LLM
+from openhands.controller.state.state import State
+from openhands.core.message import Message, TextContent
+from openhands.events.action import MessageAction
+from openhands.events.event import EventSource
 
 # Open hydra
 
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description='Test ErrorAgent LLM completion using specific LLM config from TOML, with Gemini Pro fallback.'
+    parser = argparse.ArgumentParser(description="Run ErrorAgent with specified LLM configurations.")
+    parser.add_argument(
+        "llm_configs",
+        type=str,
+        help="Comma-separated list of LLM configuration names to run (e.g., 'gpt-4o,gemini_pro')."
     )
     parser.add_argument(
-        '--config_file',
+        "--config-file",
         type=str,
-        default='config.toml',
-        help='Path to the TOML configuration file. Default: ./config.toml',
+        default="/workspace/OpenHands/config.toml",
+        help="Path to the TOML configuration file for LLMs."
     )
     parser.add_argument(
-        '--llm_name',
-        type=str,
-        default=None,
-        help='Name of the LLM configuration (from [[llms]] list in config.toml) to use.',
-    )
-    parser.add_argument(  # RESTORED
-        '--temperature_override',
+        "--temperature-override",
         type=float,
         default=None,
-        help='Override temperature for the selected LLM configuration.',
+        help="Temperature override for the LLM."
     )
     parser.add_argument(
-        '--hydra_config_file',
+        "--hydra-config-file",
         type=str,
         default=None,
-        help='Path to the Hydra configuration file. Default: None',
+        help="Path to a Hydra YAML configuration file for the agent's 'cfg' object."
     )
+    parsed_args = parser.parse_args()
+    logger.info(f"Starting script with parsed arguments: {parsed_args}")
 
-    args = parser.parse_args()
-    logger.info(
-        f"Starting script. Config File: '{args.config_file}', LLM Name: '{args.llm_name if args.llm_name else '(default handling)'}', Temp Override: {args.temperature_override}"
-    )
+    raw_input_str = parsed_args.llm_configs
+    actual_configs_str = raw_input_str
 
-    selected_llm_config_dict = None
-    full_toml_data = None
+    # Check if the input string is in key="value" or key=value format
+    if '=' in raw_input_str:
+        parts = raw_input_str.split('=', 1)
+        if len(parts) == 2:
+            # parts[0] is the key (e.g., "llm-configs")
+            # parts[1] is the value string (e.g., '"gpt-4o"' or 'gpt-4o,gpt-3.5-turbo')
+            value_str = parts[1]
+            # Remove surrounding quotes from the value string, if any
+            if (value_str.startswith('"') and value_str.endswith('"')) or \
+               (value_str.startswith("'") and value_str.endswith("'")):
+                actual_configs_str = value_str[1:-1]
+            else:
+                actual_configs_str = value_str
+        # If there's an '=' but not in key=value format, we might still want to log a warning
+        # or treat it as a literal if that's a possible LLM name. For now, this handles simple key=value.
+    
+    # Now, actual_configs_str should contain the comma-separated list of LLM names
+    llm_names_to_run = [name.strip() for name in actual_configs_str.split(',') if name.strip()]
 
-    # Load Hydra config if specified
-    cfg = None
-    if args.hydra_config_file:
-        if os.path.exists(args.hydra_config_file):
-            logger.info(f'Loading Hydra configuration from: {args.hydra_config_file}')
-            try:
-                cfg = OmegaConf.load(args.hydra_config_file)
-            except Exception as e:
-                logger.error(f'Failed to load Hydra config file: {e}', exc_info=True)
-                return
-        else:
-            logger.warning(f"Hydra configuration file '{args.hydra_config_file}' not found.")
+    if not llm_names_to_run:
+        logger.error(f"No valid LLM configuration names could be extracted from input: '{raw_input_str}'. Please provide a comma-separated list of LLM names, e.g., 'gpt-4o' or 'llm-configs=\"model_name\".'")
+        return
+    
+    logger.info(f"Successfully parsed LLM configuration names to run: {llm_names_to_run} (from input: '{raw_input_str}')")
 
     GEMINI_PRO_DEFAULTS = {
         'model': 'gemini-1.5-flash-latest',
@@ -80,174 +85,152 @@ def main():
         'custom_llm_provider': 'gemini',
     }
 
-    selected_llm_config_dict = None
-    full_toml_data = None
+    for current_llm_name in llm_names_to_run:
+        logger.info(f"\n===== Running for LLM: {current_llm_name} =====")
+        try:
+            # Initialize cfg: Load from hydra_config_file or use fallback
+            cfg = None
+            if parsed_args.hydra_config_file:
+                if os.path.exists(parsed_args.hydra_config_file):
+                    logger.info(f'Loading Hydra configuration from: {parsed_args.hydra_config_file}')
+                    try:
+                        cfg = OmegaConf.load(parsed_args.hydra_config_file)
+                    except Exception as e:
+                        logger.error(f'Failed to load Hydra config file: {e}', exc_info=True)
+                        logger.warning("Proceeding with default cfg due to Hydra load failure.")
+                        # cfg remains None, will use fallback
+                else:
+                    logger.warning(f"Hydra configuration file '{parsed_args.hydra_config_file}' not found.")
+            
+            if cfg is None:
+                logger.warning("Hydra cfg is None or not loaded. Initializing with default ErrorAgent cfg.")
+                cfg = OmegaConf.create({
+                    # 'llm_config' will be set by current_llm_name shortly
+                    'keep_going_until_succeed': False,
+                    'max_retries': 3,
+                    'is_plotting_enabled': False,
+                    'disable_numbers': False,
+                })
+            
+            # Set the llm_config for the current iteration
+            cfg.llm_config = current_llm_name
+            logger.info(f"Using cfg for {current_llm_name}: {OmegaConf.to_container(cfg)}")
 
-    config_file_exists = os.path.exists(args.config_file)
-    if config_file_exists:
-        logger.info(f'Loading configuration from: {args.config_file}')
-        full_toml_data = toml.load(args.config_file)
-    else:
-        logger.warning(f"Configuration file '{args.config_file}' not found.")
+            # LLM Configuration and Instantiation
+            selected_llm_config_dict = None
+            full_toml_data = None
+            
+            config_file_exists = os.path.exists(parsed_args.config_file)
+            if config_file_exists:
+                logger.info(f'Loading LLM configuration from: {parsed_args.config_file}')
+                try:
+                    full_toml_data = toml.load(parsed_args.config_file)
+                except Exception as e:
+                    logger.error(f"Error loading TOML file {parsed_args.config_file}: {e}", exc_info=True)
+                    # full_toml_data remains None
+            else:
+                logger.warning(f"LLM Configuration file '{parsed_args.config_file}' not found.")
 
-    if args.llm_name and config_file_exists and full_toml_data:
-        logger.info(f"Attempting to use named LLM configuration: '{args.llm_name}'")
-        found_named_config = None
-        if 'llms' in full_toml_data and isinstance(full_toml_data['llms'], list):
-            for llm_entry in full_toml_data['llms']:
-                if (
-                    isinstance(llm_entry, dict)
-                    and llm_entry.get('name') == args.llm_name
-                ):
-                    found_named_config = llm_entry.copy()
-                    break
-        if found_named_config:
-            selected_llm_config_dict = found_named_config
-            logger.info(
-                f"Successfully loaded named LLM configuration '{args.llm_name}'."
-            )
-        else:
-            logger.warning(
-                f"LLM configuration named '{args.llm_name}' not found in '{args.config_file}'."
-            )
+            # cfg.llm_config (which is current_llm_name) is the primary selector
+            target_llm_name_from_cfg = cfg.llm_config 
 
-    if (
-        selected_llm_config_dict is None
-        and config_file_exists
-        and full_toml_data
-        and not args.llm_name
-    ):
-        logger.info(
-            'No specific LLM name provided by user, attempting to load default [llm] section.'
-        )
-        default_llm_section = full_toml_data.get('llm', {}).copy()
-        if default_llm_section.get('model'):
-            selected_llm_config_dict = default_llm_section
-            logger.info('Successfully loaded default [llm] section from config file.')
-        else:
-            logger.warning(
-                "Default [llm] section in config file is missing or does not specify a 'model'."
-            )
+            if target_llm_name_from_cfg and full_toml_data:
+                logger.info(f"Attempting to load LLM configuration for: '{target_llm_name_from_cfg}' from TOML")
+                named_llm_configs = full_toml_data.get('llm', {})
+                if target_llm_name_from_cfg in named_llm_configs and isinstance(named_llm_configs[target_llm_name_from_cfg], dict):
+                    selected_llm_config_dict = named_llm_configs[target_llm_name_from_cfg].copy()
+                    logger.info(f"Successfully loaded LLM configuration '{target_llm_name_from_cfg}' from [llm.{target_llm_name_from_cfg}] section.")
+                else:
+                    logger.warning(f"LLM configuration '{target_llm_name_from_cfg}' not found as a dictionary under [llm] in '{parsed_args.config_file}'. Will check default section or use fallbacks.")
 
-    if selected_llm_config_dict is None:
-        logger.warning(
-            'No suitable configuration found in TOML or no TOML file. Using Gemini Pro defaults as fallback.'
-        )
-        selected_llm_config_dict = GEMINI_PRO_DEFAULTS.copy()
-        selected_llm_config_dict['model'] = os.getenv(
-            'OPENHANDS_LLM_MODEL', selected_llm_config_dict['model']
-        )
-        selected_llm_config_dict['temperature'] = float(
-            os.getenv(
-                'OPENHANDS_LLM_TEMPERATURE', selected_llm_config_dict['temperature']
-            )
-        )
+            if selected_llm_config_dict is None and full_toml_data:
+                logger.info(f"No specific [llm.{target_llm_name_from_cfg}] section found or it was invalid. Attempting to load direct keys from general [llm] section.")
+                default_llm_section_direct_keys = {
+                    k: v for k, v in full_toml_data.get('llm', {}).items() if not isinstance(v, dict)
+                }
+                if default_llm_section_direct_keys.get('model'):
+                    selected_llm_config_dict = default_llm_section_direct_keys.copy()
+                    # If current_llm_name is a model string, it might be intended to override the model from the default section
+                    # For now, we assume the default section is a generic fallback. If specific model override is needed here, logic can be added.
+                    logger.info("Successfully loaded model configuration from direct keys of [llm] section as a fallback.")
+                else:
+                    logger.warning("General [llm] section in config file does not directly specify a 'model' or is missing.")
+            
+            if selected_llm_config_dict is None:
+                logger.warning(f"No suitable configuration found in TOML for '{current_llm_name}'. Using Gemini Pro defaults as fallback, and '{current_llm_name}' as model name if it differs.")
+                selected_llm_config_dict = GEMINI_PRO_DEFAULTS.copy()
+                # Use current_llm_name as the model if it's not the gemini default model name, assuming it's a valid model identifier
+                if current_llm_name != GEMINI_PRO_DEFAULTS['model']:
+                    selected_llm_config_dict['model'] = current_llm_name
+                # Apply environment variable overrides for Gemini defaults if still using Gemini model
+                if selected_llm_config_dict['model'] == GEMINI_PRO_DEFAULTS['model']:
+                     selected_llm_config_dict['model'] = os.getenv('OPENHANDS_LLM_MODEL', selected_llm_config_dict['model'])
+                     selected_llm_config_dict['temperature'] = float(os.getenv('OPENHANDS_LLM_TEMPERATURE', selected_llm_config_dict['temperature']))
 
-    if (
-        args.temperature_override is not None
-    ):  # This uses the now-defined args.temperature_override
-        selected_llm_config_dict['temperature'] = args.temperature_override
-        logger.info(f'Overriding temperature to: {args.temperature_override}')
+            if parsed_args.temperature_override is not None:
+                selected_llm_config_dict['temperature'] = parsed_args.temperature_override
+                logger.info(f'Overriding temperature to: {parsed_args.temperature_override}')
 
-    if not selected_llm_config_dict or not selected_llm_config_dict.get('model'):
-        logger.critical("LLM 'model' could not be determined. Cannot proceed.")
-        return
+            if not selected_llm_config_dict or not selected_llm_config_dict.get('model'):
+                logger.critical(f"LLM 'model' could not be determined for '{current_llm_name}'. Skipping this LLM.")
+                continue 
 
-    selected_llm_config_dict['temperature'] = float(
-        selected_llm_config_dict.get('temperature', 0.1)
-    )
+            selected_llm_config_dict['temperature'] = float(selected_llm_config_dict.get('temperature', 0.1))
+            
+            valid_llm_config_fields = set(LLMConfig.model_fields.keys())
+            llm_config_args = {
+                k: v for k, v in selected_llm_config_dict.items() if k in valid_llm_config_fields
+            }
 
-    final_llm_args_for_config_class = {}
-    if 'model' in selected_llm_config_dict:
-        final_llm_args_for_config_class['model'] = str(
-            selected_llm_config_dict['model']
-        )
-    if 'temperature' in selected_llm_config_dict:
-        final_llm_args_for_config_class['temperature'] = float(
-            selected_llm_config_dict['temperature']
-        )
+            if 'model' not in llm_config_args:
+                logger.critical(f"LLM 'model' is missing in the final config dict for '{current_llm_name}'. Skipping this LLM.")
+                continue
+                
+            logger.info(f"Final dictionary for LLMConfig ({current_llm_name}): {llm_config_args}")
 
-    if 'custom_llm_provider' in selected_llm_config_dict:
-        final_llm_args_for_config_class['custom_llm_provider'] = selected_llm_config_dict['custom_llm_provider']
-        logger.info(
-            f"Including 'custom_llm_provider' ('{selected_llm_config_dict['custom_llm_provider']}') in LLMConfig."
-        )
+            llm_instance = None
+            try:
+                llm_config_obj = LLMConfig(**llm_config_args)
+                logger.info(f"LLMConfig created for {current_llm_name}: model='{llm_config_obj.model}', temperature='{getattr(llm_config_obj, 'temperature', 'N/A')}', provider='{getattr(llm_config_obj, 'custom_llm_provider', 'default')}'")
+                llm_instance = LLM(config=llm_config_obj)
+                logger.info(f"Real LLM instance created for {current_llm_name}.")
+            except Exception as e:
+                logger.critical(f"Failed to create LLMConfig or LLM instance for {current_llm_name}: {e}", exc_info=True)
+                continue
 
-    llm_config = LLMConfig(**final_llm_args_for_config_class)
-    logger.info(
-        f"LLMConfig created: model='{llm_config.model}', temperature='{getattr(llm_config, 'temperature', 'N/A')}'"
-    )
+            agent_config = AgentConfig() 
+            logger.info(f'AgentConfig initialized (default) for {current_llm_name}.')
+            
+            error_agent_instance = None
+            try:
+                error_agent_instance = ErrorAgent(llm=llm_instance, config=agent_config, cfg=cfg)
+                logger.info(f'ErrorAgent instantiated successfully for {current_llm_name}.')
+            except Exception as e:
+                logger.error(f'Failed to instantiate ErrorAgent for {current_llm_name}: {e}', exc_info=True)
+                continue 
+            
+            prompt = 'What is a large language model? Explain in one sentence.'
+            logger.info(f"Simulating user message with prompt for {current_llm_name}: '{prompt}'")
+            
+            state = State()
+            user_message_action = MessageAction(content=prompt)
+            state.history.append(user_message_action)
+            
+            action_result = error_agent_instance.step(state)
+            
+            logger.info(f'Agent ({current_llm_name}) returned action: {type(action_result).__name__}')
+            
+            if isinstance(action_result, MessageAction):
+                print(f'\nLLM ({current_llm_name}) Output:\n{action_result.content}')
+            elif isinstance(action_result, Message): 
+                 print(f'\nLLM ({current_llm_name}) Output (Message type):\n{action_result.content}')
+            else:
+                print(f'\nAgent ({current_llm_name}) returned unexpected action type: {type(action_result).__name__}')
+                print(f'Action details: {action_result}')
 
-    # Create a mock LLM object to avoid real API calls
-    mock_llm = MagicMock()
-
-    # Configure the mock LLM's completion method to return a simulated response
-    # Configure the mock LLM's completion method to return a simulated response
-    # Mimic the structure of litellm.types.utils.ModelResponse
-    mock_response = MagicMock(spec=['choices', 'id']) # Add 'id' to the spec
-    mock_response.id = "mock_response_id_123" # Assign a dummy ID
-    mock_response.choices = [MagicMock(spec=['message'])]
-    mock_response.choices[0].message = MagicMock(spec=['content', 'tool_calls'])
-    mock_response.choices[0].message.content = "A large language model is an AI model trained on a massive amount of text data to understand and generate human-like text."
-    mock_response.choices[0].message.tool_calls = None # Ensure no tool calls are returned
-
-    mock_llm.completion.return_value = mock_response
-
-    llm = mock_llm # Use the mock LLM
-
-    logger.info("Mock LLM initialized with structured response.")
-# Debugging prints
-    print(f"Debug: mock_response type: {type(mock_response)}")
-    print(f"Debug: mock_response has choices: {'choices' in dir(mock_response)}")
-    if hasattr(mock_response, 'choices'):
-        print(f"Debug: mock_response.choices type: {type(mock_response.choices)}")
-        print(f"Debug: len(mock_response.choices): {len(mock_response.choices)}")
-        if len(mock_response.choices) > 0:
-            print(f"Debug: mock_response.choices[0] type: {type(mock_response.choices[0])}")
-            print(f"Debug: mock_response.choices[0] has message: {'message' in dir(mock_response.choices[0])}")
-            if hasattr(mock_response.choices[0], 'message'):
-                print(f"Debug: mock_response.choices[0].message type: {type(mock_response.choices[0].message)}")
-                print(f"Debug: mock_response.choices[0].message has content: {'content' in dir(mock_response.choices[0].message)}")
-                print(f"Debug: mock_response.choices[0].message has tool_calls: {'tool_calls' in dir(mock_response.choices[0].message)}")
-
-    
-
-    # MODIFIED AgentConfig initialization
-    agent_config = AgentConfig()
-    logger.info('AgentConfig initialized (default).')
-
-    try:
-        error_agent_instance = ErrorAgent(llm=llm, config=agent_config, cfg=cfg)
-        logger.info('ErrorAgent instantiated successfully.')
-    except Exception as e:
-        logger.error(f'Failed to instantiate ErrorAgent: {e}', exc_info=True)
-
-    prompt = 'What is a large language model? Explain in one sentence.'
-    logger.info(f"Simulating user message with prompt: '{prompt}'")
-
-    # Create a State object and add the user message to history
-    state = State()
-    # Create a MessageAction and add it to history
-    # The 'source' attribute is added by the State/View logic, not the constructor
-    user_message_action = MessageAction(content=prompt)
-    state.history.append(user_message_action)
-
-    try:
-        # Call the agent's step method to get an action
-        action = error_agent_instance.step(state)
-
-        logger.info(f'Agent returned action: {type(action).__name__}')
-
-        # Check if the action is a MessageAction and print its content
-        if isinstance(action, Message):
-            print(f'\nLLM Output:\n{action.content}')
-        else:
-            print(f'\nAgent returned unexpected action type: {type(action).__name__}')
-            print(f'Action details: {action}')
-
-    except Exception as e:
-        logger.error(f'Error during agent step: {e}', exc_info=True)
-
+        except Exception as e:
+            logger.error(f"!!!!! UNHANDLED EXCEPTION for LLM: {current_llm_name} - {type(e).__name__}: {e} !!!!!", exc_info=True)
+            # Continue to the next LLM in the outer loop
 
 if __name__ == '__main__':
     main()

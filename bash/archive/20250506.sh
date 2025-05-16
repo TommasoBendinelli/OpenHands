@@ -1,4 +1,0 @@
-python -m pdb  evaluation/benchmarks/error_bench/run_infer.py   number_of_experiments=1   eval_n_limit=1   class_type=explorative_data_analysis   instance=set_points,frequency_band,predict_ts_stationarity   constraints=0   hints=0   llm_config="gemini"   solution_iterations=0   cheating_attempt=False   warm_against_cheating=False   max_budget_per_task=0.5   prompt_variation=0,1,2,3,4,5,6,7,8,9  seed=21,23,25,26,27,28,29,30   -m
-
-
-python   evaluation/benchmarks/error_bench/run_infer.py   number_of_experiments=1   eval_n_limit=1   class_type=explorative_data_analysis   instance=set_points,frequency_band,predict_ts_stationarity,find_peaks   constraints=0   hints=0   llm_config="gemini"   solution_iterations=10   cheating_attempt=False   warm_against_cheating=False   max_budget_per_task=0.5   prompt_variation=0,1,2,3,4,5,6,7,8,9  seed=21,23    -m

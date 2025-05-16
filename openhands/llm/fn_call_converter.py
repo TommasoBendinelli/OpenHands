@@ -699,7 +699,6 @@ def convert_non_fncall_messages_to_fncall_messages(
                         and content[0].get('type') == 'text'
                     )
                 ):
-                    breakpoint()
                     raise FunctionCallConversionError(
                         f'Expected str or list with one text item when tool result is present in the message. Content: {content}'
                     )

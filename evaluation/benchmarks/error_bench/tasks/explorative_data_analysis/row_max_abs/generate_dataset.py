@@ -13,11 +13,9 @@ import random
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils import save_datasets   # noqa: E402
 
-# -------------------------------------------------------------------
 THRESH   = 4.0      # decision boundary
 N_FEATS  = 12
 N_ROWS   = 2_000
-# -------------------------------------------------------------------
 
 
 def generate_sample(has_outlier: bool) -> np.ndarray:
@@ -31,8 +29,6 @@ def generate_sample(has_outlier: bool) -> np.ndarray:
         x[idx] = spike
         return x
 
-    # ---- class 0: guarantee *no* value crosses the threshold ------------
-    # Draw until all |x| ≤ 3.5  (rarely needs more than 1–2 tries)
     while True:
         x = np.random.normal(0, 1, size=N_FEATS)
         if np.abs(x).max() <= 3.5:

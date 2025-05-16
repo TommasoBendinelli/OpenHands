@@ -284,6 +284,7 @@ class LLM(RetryMixin, DebugMixin):
             # messages_with_image = copy.deepcopy(messages)
 
             # delete any entry where "image_url" is a key
+
             for message in messages:
                 if 'content' in message:
                     if isinstance(message['content'], str):
@@ -321,7 +322,9 @@ class LLM(RetryMixin, DebugMixin):
                             in new_msgs[0]['text']
                             and 'gemini' in self.config.model
                             or 'llama' in self.config.model
+                            or 'open_router_gemini_pro_pro' in self.config.model
                         ):
+                            breakpoint()
                             message['content'] = [
                                 {
                                     'type': 'text',

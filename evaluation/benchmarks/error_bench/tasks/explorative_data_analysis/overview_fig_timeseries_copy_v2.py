@@ -22,8 +22,10 @@ time_series_datasets_v2 = [
     # 'set_points',
     # "simultanus_spike",
     # "spike_presence",
-    'variance_burst',
     "zero_crossing",
+    'variance_burst',
+    "channel_corr",
+    "channel_divergence",
 ]
 
 tabular_datasets = [
@@ -99,13 +101,13 @@ def main():
     # # plt.tight_layout()
     # plt.savefig("overview_fig_v4_8.png", dpi=300, bbox_inches='tight', pad_inches=0)
 
-    fig = plt.figure(figsize=(4, 2))
-    outer = gridspec.GridSpec(2, 2, wspace=0.12, hspace=-0.22)  # 2 rows, 4 columns
+    fig = plt.figure(figsize=(3, 2))
+    outer = gridspec.GridSpec(3, 2, wspace=0.18, hspace=-0.05)  # 2 rows, 4 columns
 
     for i, dataset_dir in enumerate(time_series_datasets_v2):
         # Read the CSV files
-        data_path = os.path.join(dataset_dir, 'test.csv')
-        labels_path = os.path.join(dataset_dir, 'test_labels.csv')
+        data_path = os.path.join(dataset_dir, 'train.csv')
+        labels_path = os.path.join(dataset_dir, 'train_labels.csv')
 
         data_df = pd.read_csv(data_path)  # no header
         labels_df = pd.read_csv(labels_path)
@@ -127,38 +129,56 @@ def main():
             hspace=-0.005,
         )
 
-        # Class 0 plot
-        ax0 = plt.Subplot(fig, inner[0])
-        ax0.tick_params(axis='both', labelsize=3)
-        ax0.plot(sample_class0.values, linewidth=0.3, color='#1f77b4')
-        # ax0.set_title(f"{dataset_dir}_Class 0", fontsize=4)
+        ax0 = plt.Subplot(fig, inner[0])    
+        ax0.tick_params(axis='both', labelsize=3, width=0.2)
+
+        if dataset_dir == 'channel_corr' or dataset_dir == 'channel_divergence':
+            half = sample_class0.shape[0] // 2
+            base_color = '#1f77b4'
+            ax0.plot(sample_class0.values[:half], color=base_color, linewidth=0.3)
+            ax0.plot(sample_class0.values[half:], color=base_color, alpha=0.4, linewidth=0.3)
+        else:
+            # Class 0 plot
+            ax0.plot(sample_class0.values, linewidth=0.01, color='#1f77b4')
+            # ax0.set_title(f"{dataset_dir}_Class 0", fontsize=4)
+        
         for spine in ax0.spines.values():
             spine.set_linewidth(0.2)
         fig.add_subplot(ax0)
 
         # Class 1 plot
         ax1 = plt.Subplot(fig, inner[1])
-        ax1.tick_params(axis='both', labelsize=3)
+        ax1.tick_params(axis='both', labelsize=3, width=0.2)
         ax1.tick_params(
-            axis='y', left=False, labelleft=False
+            axis='y', left=False, labelleft=False, width=0.2
         )  # No y-ticks, no y-labels
-        ax1.plot(sample_class1.values, linewidth=0.3, color='#ff7f0e')
-        # ax1.set_title(f"Class 1", fontsize=4)
+
+        if dataset_dir == 'channel_corr' or dataset_dir == 'channel_divergence':
+            half = sample_class1.shape[0] // 2
+            base_color = '#ff7f0e'
+            ax1.plot(sample_class1.values[:half], color=base_color, linewidth=0.3)
+            ax1.plot(sample_class1.values[half:], color=base_color, alpha=0.4, linewidth=0.3)
+
+        else:
+            ax1.plot(sample_class1.values, linewidth=0.01, color='#ff7f0e')
+            # ax1.set_title(f"Class 1", fontsize=4)
+        for spine in ax1.spines.values():
+            spine.set_linewidth(0.2)
         fig.add_subplot(ax1)
 
         ax_title = plt.Subplot(fig, inner[0, :])
         ax_title.axis('off')
-        ax_title.set_title(dataset_dir, fontsize=4, pad=3)
+        ax_title.set_title(dataset_dir, fontsize=3, pad=3)
         fig.add_subplot(ax_title)
 
     # plt.subplots_adjust(top=0.95, bottom=0.03, left=0.05, right=0.95)
     plt.subplots_adjust(
-        top=0.9, bottom=0.0002, left=0.05, right=0.95, wspace=0.4, hspace=0.05
+        top=0.9, bottom=0.0002, left=0.05, right=0.95, wspace=2, hspace=1
     )
     # plt.subplots_adjust(wspace=60, hspace=0.03)
     # plt.tight_layout()
     plt.savefig(
-        'overview_fig_timeseries_test.png', dpi=300, bbox_inches='tight', pad_inches=0
+        'overview_fig_timeseries_train_v3.pdf', dpi=300, bbox_inches='tight', pad_inches=0
     )
 
     return

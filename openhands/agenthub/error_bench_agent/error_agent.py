@@ -309,7 +309,6 @@ class ErrorAgent(Agent):
 
         # Find each message with "already displayed to user" and remove it
         if self.cfg.is_plotting_enabled:
-            
 
             def save_png(pngs):
                 # Save all the images in a list inside the evaluation folder
@@ -333,6 +332,7 @@ class ErrorAgent(Agent):
                     'gemini' in self.cfg.llm_config
                     or 'gpt' in self.cfg.llm_config
                     or 'llama' in self.cfg.llm_config
+                    or 'open_router' in self.cfg.llm_config
                 ):
                     for part in message['content']:
                         if (
@@ -371,6 +371,7 @@ class ErrorAgent(Agent):
                     and 'claude' in self.cfg.llm_config
                     or 'gpt' in self.cfg.llm_config
                     or 'llama' in self.cfg.llm_config
+                    or 'open_router' in self.cfg.llm_config
                 ):
                     if (
                         'content' in message
@@ -417,7 +418,7 @@ class ErrorAgent(Agent):
             new_msx = params
 
         response = self.llm.completion(**new_msx)
-        
+
         logger.debug(f'Response from LLM: {response}')
         actions = self.response_to_actions_fn(response)
         logger.debug(f'Actions after response_to_actions: {actions}')

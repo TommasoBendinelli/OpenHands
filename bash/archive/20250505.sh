@@ -1,3 +1,0 @@
-python evaluation/benchmarks/error_bench/run_infer.py   number_of_experiments=1   eval_n_limit=1   class_type=explorative_data_analysis   instance=find_peaks   constraints=0   hints=0   llm_config="gemini"   solution_iterations=5   cheating_attempt=False   warm_against_cheating=False   max_budget_per_task=0.25   prompt_variation=0  seed=42
-
-python evaluation/benchmarks/error_bench/run_infer.py   number_of_experiments=1   eval_n_limit=1   class_type=explorative_data_analysis   instance=find_peaks   constraints=0   hints=0   llm_config="gemini"   solution_iterations=5   cheating_attempt=False   warm_against_cheating=False   max_budget_per_task=0.25   prompt_variation=0  'seed=range(10,31)' -m
