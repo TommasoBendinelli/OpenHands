@@ -14,6 +14,7 @@ A model that relies on 'colour' scores ~100 % on train but ~50 % on test.
 """
 
 import random, string, numpy as np, pandas as pd, matplotlib.pyplot as plt
+from typing import List
 from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -34,7 +35,7 @@ def unique_id(used: set) -> str:
             used.add(gid); return gid
 
 
-def make_group(label: int, colour: str, gid: str) -> list[list]:
+def make_group(label: int, colour: str, gid: str) -> List[List]:
     """
     Build one group, injecting outliers if label==1.
     """
