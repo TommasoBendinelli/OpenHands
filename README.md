@@ -33,3 +33,6 @@ We will ensure long term hosting and access of the data upon acceptance through 
 Each of the folders in `evaluation/benchmarks/error_bench/tasks/explorative_data_analysis` contains one of the existing datasets comprising of four `.csv` files and a `generate_dataset.py` which can be used to regenerate the data.
 In case there is issues with the croissant dataset you can regenerate the `croissant.json` with the `croissant/create_croissant_dataset.py`
 script.
+
+# OpenSource
+Our repository is based on a large OpenSource repository, please ignore files not mentioned by the README and follow only instructions found in this readme to run the experiments. For specific issues we refer to the OpenHands repository (https://github.com/All-Hands-AI/OpenHands)
