@@ -161,15 +161,8 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
+.vscode/
 .cursorignore
-
-# VS Code: Ignore all but certain files that specify repo-specific settings.
-# https://stackoverflow.com/questions/32964920/should-i-commit-the-vscode-folder-to-source-control
-.vscode/**/*
-!.vscode/extensions.json
-!.vscode/launch.json
-!.vscode/settings.json
-!.vscode/tasks.json
 
 # evaluation
 evaluation/evaluation_outputs
@@ -241,7 +234,9 @@ containers/runtime/project.tar.gz
 containers/runtime/code
 **/node_modules/
 
-# output
+# env
+evaluation/benchmarks/data_science_bench/tasks/explorative_data_analysis/**/*.png
+evaluation/benchmarks/data_science_bench/tasks/explorative_data_analysis/**/*.csv
+evaluation/benchmarks/data_science_bench/tasks/old
+
 outputs/
-evaluation/benchmarks/data_science_bench/**/*.png
-evaluation/benchmarks/data_science_bench/**/*.csv

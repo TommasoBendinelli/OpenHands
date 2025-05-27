@@ -1,0 +1,52 @@
+number_of_experiments: 4
+llm_config: open_router
+eval_num_workers: 1
+eval_n_limit: 1
+eval_output_dir: # To be filled in by the script
+agent_cls: error_bench_agent
+eval_note: temp
+class_type: "data_inputation"
+instance: "wine"
+constraints: 0
+hints: 0
+trajectory_visualiser_folder: 'trajectory-visualizer/public'
+solution_iterations: 0
+template_text: False
+enable_browsing_for_pictures: False
+cheating_attempt: False
+warm_against_cheating: False
+max_budget_per_task: 0
+prompt_variation: 0
+seed: 0
+show_solution_iterations: True
+show_max_budget_per_task: False
+keep_going_until_succeed: False
+include_constraints: False
+native_tool_calling: True
+instruction_constraint: ''
+is_sklearn_banned: True
+max_iterations: 100
+temperature: 0
+top_p: 1
+disable_numbers: False
+is_plotting_enabled: True
+is_read_csv_banned: False
+give_structure_hint: False
+is_explaination_and_intepretation_included: false
+only_plots: false
+identifier_experiment: propotypying
+# Inject current date and time as YYYY-MM-DD_HH-MM-SS
+timestamp: ${now:%Y-%m-%d_%H-%M-%S}
+# timestamp: ${now:%Y-%m-%d}
+sid: "" # If empty, use the default
+fold: -1 # Only used in anomaly detection so far, for the others it's -1
+hydra:
+  job:
+    chdir: false
+  launcher: joblib
+
+joblib_launcher:
+  n_jobs: 2    # <-- limit to 2 parallel runs
+
+defaults:
+  - override hydra/launcher: joblib
