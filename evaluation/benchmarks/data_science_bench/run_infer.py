@@ -15,7 +15,6 @@ from evaluation.utils.shared import (
     EvalMetadata,
     EvalOutput,
     codeact_user_response,
-    errorbench_user_response,
     get_default_sandbox_config_for_eval,
     make_metadata,
     reset_logger_for_multiprocessing,
@@ -40,7 +39,7 @@ from .benchmark_additions import kill_instance, safe_append
 
 AGENT_RESPONSE_HANDLERS = {
     'CodeActAgent': codeact_user_response,
-    'ErrorBench': partial(errorbench_user_response, encapsulate_solution=True),
+    'ErrorBench': partial(codeact_user_response, encapsulate_solution=True),
 }
 
 LOCAL_DATASET_PATH = os.path.join(os.path.dirname(__file__), 'benchmark')
