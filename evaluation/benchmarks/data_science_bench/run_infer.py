@@ -15,7 +15,6 @@ from evaluation.utils.shared import (
     EvalMetadata,
     EvalOutput,
     codeact_user_response,
-    errorbench_user_response,
     get_default_sandbox_config_for_eval,
     make_metadata,
     reset_logger_for_multiprocessing,
@@ -36,7 +35,8 @@ from openhands.events.observation import CmdOutputObservation
 from openhands.events.serialization.event import event_to_dict
 from openhands.runtime.base import Runtime
 from openhands.utils.async_utils import call_async_from_sync
-from .benchmark_additions import kill_instance, safe_append
+from .benchmark_additions import kill_instance, safe_append,errorbench_user_response
+
 
 AGENT_RESPONSE_HANDLERS = {
     'CodeActAgent': codeact_user_response,
