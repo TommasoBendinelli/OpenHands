@@ -2,7 +2,9 @@ import fcntl
 import json
 import os
 from pathlib import Path
-
+from openhands.controller.state.state import State
+from openhands.events.action import Action
+from typing import Callable
 
 def safe_append(path: Path, text: str):
     # Open in append+ mode so writes always go to end
