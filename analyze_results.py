@@ -84,6 +84,15 @@ def make_overleaf_table(
     str  –  LaTeX code block.
     """
 
+    # Sanity checks
+    required_cols = {"Model", "instance", metric}
+    assert required_cols.issubset(entry_with.columns), (
+        f"entry_with missing columns: {required_cols - set(entry_with.columns)}"
+    )
+    assert required_cols.issubset(entry_without.columns), (
+        f"entry_without missing columns: {required_cols - set(entry_without.columns)}"
+    )
+
     # 1 · pivot both tables so that rows = tasks, cols = models
     piv_w  = entry_with.pivot(index="instance", columns="Model", values=metric)
     piv_wo = entry_without.pivot(index="instance", columns="Model", values=metric)
@@ -148,6 +157,11 @@ def create_accuracy(
         • False → format 0.263158 as ``0.2632``
     """
 
+    # Sanity checks
+    required = {'llm_config', 'is_time_series_task', *important_columns}
+    missing = required - set(model_results_df.columns)
+    assert not missing, f"create_accuracy missing columns: {missing}"
+
     # ---------- helpers -------------------------------------------------------
     def fmt(x: float) -> str:
         """Format either as percentage or plain decimal."""
@@ -159,6 +173,10 @@ def create_accuracy(
         columns='is_time_series_task',  # 0 ↔ tabular, 1 ↔ time-series
         values=list(important_columns),
     )
+
+    # Ensure all required models are present
+    missing_models = set(model_order) - set(pivot.index)
+    assert not missing_models, f"Missing models in pivot: {missing_models}"
 
     # ---------- locate maxima -------------------------------------------------
     bold_mask: dict[tuple[str, int], pd.Series] = {}
@@ -252,6 +270,15 @@ def fill_costs_pycalls_table(
     • All bold-highlighting code has been removed.
     """
 
+    # Sanity checks
+    required_cols = {
+        'llm_config',
+        'is_time_series_task',
+        *important_columns,
+    }
+    missing = required_cols - set(model_results_df.columns)
+    assert not missing, f"fill_costs_pycalls_table missing columns: {missing}"
+
     # ---------- helpers -------------------------------------------------------
     def fmt_cost(x: float) -> str:  # 0.0269
         return f'{x:.4f}'
@@ -273,6 +300,9 @@ def fill_costs_pycalls_table(
         values=list(important_columns),
         aggfunc='mean',
     )
+
+    missing_models = set(model_order) - set(pivot.index)
+    assert not missing_models, f"Missing models in pivot: {missing_models}"
 
     # ---------- build each row (no bolding) ----------------------------------
     rows = []
@@ -336,6 +366,9 @@ def clean_metrics(df: pd.DataFrame, nan_option: str) -> pd.DataFrame:
     """
     Handle NaNs in the 'metric' column according to nan_option.
     """
+    assert 'metric' in df.columns, "Column 'metric' missing"
+    assert nan_option in {'-1', '0', 'none'}
+
     df['metric'] = df['metric'].apply(lambda x: max(x) if len(x) > 0 else np.nan)
     if nan_option == '-1':
         df = df.dropna(subset=['metric'])
@@ -353,6 +386,7 @@ _TS_WITH_IDX_RE = re.compile(
 
 
 def _load_experiment(folder: Path) -> tuple[dict, dict]:
+    assert folder.is_dir(), f"Folder does not exist: {folder}"
     meta, out = {}, {}
     meta_path = folder / METADATA_JSON
     output_path = folder / OUTPUT_JSON
@@ -392,6 +426,10 @@ def get_folders_in_range(
     Returns:
         List[Path]: List of subfolder paths within the range.
     """
+
+    assert base_dir.is_dir(), f"Base directory does not exist: {base_dir}"
+    assert after is None or isinstance(after, datetime)
+    assert before is None or isinstance(before, datetime)
 
     matching_paths = []
 
@@ -437,6 +475,9 @@ def get_folders_in_range(
 
 
 def get_metric_before_violation(before: str, outputs: list[dict]):
+    assert outputs and isinstance(outputs[0], dict), "outputs must contain dicts"
+    assert 'history' in outputs[0], "outputs[0] must contain 'history'"
+
     # find all occurrences of "'id': <digits>"
     match_id = int(re.findall(r"'id'\s*:\s*(\d+)", before)[-1])
 
@@ -466,6 +507,7 @@ def filter_actions_by_observation(history: list[dict], obs_type: str) -> list[di
     """
     Return all entries in `history` whose 'observation' field equals `obs_type`.
     """
+    assert isinstance(history, list)
     return [entry for entry in history if entry.get('observation') == obs_type]
 
 
@@ -473,7 +515,8 @@ def get_action_ids_by_observation(history: list[dict], obs_type: str) -> list[in
     """
     Return the list of 'id' fields for entries in `history` matching `obs_type`.
     """
-    return [entry['id'] for entry in filter_actions_by_observation(history, obs_type)]
+    filtered = filter_actions_by_observation(history, obs_type)
+    return [entry['id'] for entry in filtered]
 
 
 # Get all the entries evaluation/evaluation_outputs/outputs
@@ -713,6 +756,7 @@ def main():
             """
             Compute the cost per score.
             """
+            assert len(msgs) == len(costs), "msgs and costs length mismatch"
             cost_associated_with_score = []
             to_go_idx = 0
 
@@ -854,6 +898,17 @@ def main():
             else np.nan,
             axis=1,
         )
+        # Basic sanity checks for per-run metrics
+        assert df['Acc100'].isin([0, 1]).all()
+        assert df['Acc99'].isin([0, 1]).all()
+        assert df['number_of_submissions'].iloc[0] >= 0
+        assert (
+            np.isnan(df['final_accumulated_cost'].iloc[0])
+            or df['final_accumulated_cost'].iloc[0] >= 0
+        )
+        assert df['diff'].dropna().between(-1, 1).all()
+        assert df['metric'].apply(lambda xs: all(0 <= v <= 1 for v in xs)).all()
+
         df['folder_identifier'] = folder_identifier
         # if "channel_divergence" in df['instance'].iloc[0] and "41" in df['llm_config'].iloc[0]:
         #     breakpoint()
@@ -932,6 +987,14 @@ def main():
     all_results['best_metric'] = all_results['metric'].apply(
         lambda x: max(x) if len(x) > 0 else np.nan
     )
+    # Global sanity checks on aggregated metrics
+    assert all_results['Acc100'].between(0, 1).all()
+    assert all_results['Acc99'].between(0, 1).all()
+    assert all_results['OneShotAcc'].between(0, 1).all()
+    assert all_results['number_of_submissions'].ge(0).all()
+    assert all_results['final_accumulated_cost'].dropna().ge(0).all()
+    assert all_results['cost_when_right'].dropna().ge(0).all()
+    assert all_results['best_metric'].dropna().between(0, 1).all()
     # Drop all the errors STATUS$ERROR_LLM_SERVICE_UNAVAILABLE and  BadRequestError: litellm.BadRequestError: VertexAIException BadRequestError
     to_drop_errors = [
         'STATUS$ERROR_LLM_SERVICE_UNAVAILABLE',
@@ -1156,6 +1219,23 @@ def main():
             gpt-o4-mini   → O4-mini
 
         """
+        # Sanity checks
+        required_cols = {
+            'identifier_experiment',
+            'llm_config',
+            'is_plotting_enabled',
+            'is_time_series_task',
+            'instance',
+            'Acc100',
+            'Acc99',
+            'perfect_accuracy_all_the_time',
+            'almost_perfect_accuracy_all_the_time',
+            'number_of_submissions',
+            'metric',
+        }
+        missing = required_cols - set(df.columns)
+        assert not missing, f"group_table missing columns: {missing}"
+
         # Map the models to the names in the paper
 
         df = df.loc[df['identifier_experiment'] == identifier_experiment]
@@ -1271,6 +1351,20 @@ def main():
             #     breakpoint()
         # -------------------------------------------------------------------------
         table1_df = pd.DataFrame(table1_list)
+        # Ensure aggregated metrics are within expected bounds
+        assert table1_df['mean_perfect_accuracy'].between(0, 1).all()
+        assert table1_df['mean_Acc99'].between(0, 1).all()
+        assert table1_df['mean_anything_perfect'].between(0, 1).all()
+        assert table1_df['variance_perfect_accuracy'].ge(0).all()
+        assert table1_df['variance_almost_perfect_accuracy'].ge(0).all()
+        assert (
+            table1_df['mean_perfect_accuracy_all_the_time']
+            <= table1_df['mean_perfect_accuracy']
+        ).all()
+        assert (
+            table1_df['mean_Acc99_all_the_time']
+            <= table1_df['mean_Acc99']
+        ).all()
         return table1_df
 
     def table_2(
@@ -1331,6 +1425,8 @@ def main():
         fmt : str
             C-style numeric format, e.g. '%.2f'
         """
+        assert value_col in df.columns, f"{value_col} column missing"
+
         # Replace llm_config with the name in the paper
         df['llm_config'] = df['llm_config'].replace(NAMING_MAP)
         # Rename "llm_config" to "Model"
@@ -1379,6 +1475,9 @@ def main():
         """
         Group the DataFrame by model and instance, and compute the mean and variance (Appendix A.1).
         """
+        required_cols = {"llm_config", "instance", "OneShotAcc", "Acc100", "Acc99", "seed"}
+        missing = required_cols - set(df.columns)
+        assert not missing, f"group_by_model_and_instance missing columns: {missing}"
         # --- filtering ----------------------------------------------------------
         if identifier_experiment is not None:
             df = df.loc[df["identifier_experiment"] == identifier_experiment]
@@ -1409,6 +1508,9 @@ def main():
             )
             .reset_index()
         )
+        assert grouped[["OneShotAcc_mean", "Acc100_mean", "Acc99_mean"]].apply(
+            lambda s: s.between(0, 1).all()
+        ).all()
 
         latex_code = df_to_overleaf_table(
             grouped,
