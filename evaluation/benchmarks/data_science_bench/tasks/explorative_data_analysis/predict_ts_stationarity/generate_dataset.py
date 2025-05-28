@@ -44,27 +44,6 @@ def _boxed_two_panel_plot(df, path_png, path_pdf, titles):
     fig.savefig(path_pdf)
     plt.close(fig)
 
-    # destination folder (same pattern as the other datasets)
-    figs_dir = Path(
-        os.environ.get('FIGS_DIR', '67ff59b20231d9f95909f426/figs/datasets')
-    )
-
-    # train split
-    _boxed_two_panel_plot(
-        train_df,
-        figs_dir / 'stationary_vs_nonstationary_train.png',
-        figs_dir / 'stationary_vs_nonstationary_train.pdf',
-        titles=('stationary AR(1) (class 1)', 'random walk (class 0)'),
-    )
-    # test split
-    _boxed_two_panel_plot(
-        test_df,
-        figs_dir / 'stationary_vs_nonstationary_test.png',
-        figs_dir / 'stationary_vs_nonstationary_test.pdf',
-        titles=('stationary AR(1) (class 1)', 'random walk (class 0)'),
-    )
-    print('✓ boxed figures written to', figs_dir)
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 def adfuller_stationarity_test(series, significance: float = 0.05) -> bool:
@@ -148,10 +127,22 @@ if __name__ == '__main__':
     print('\nADF on first training series:')
     adfuller_stationarity_test(train_df.iloc[0, :-1])
 
-    # Plotting
+    # ── Boxed visualisations (train & test) ───────────────────────────
+    figs_dir = Path(
+        os.environ.get('FIGS_DIR', '67ff59b20231d9f95909f426/figs/datasets')
+    )
+    figs_dir.mkdir(parents=True, exist_ok=True)
+
     _boxed_two_panel_plot(
         train_df,
-        output_dir / 'stationary_vs_nonstationary_train.png',
-        output_dir / 'stationary_vs_nonstationary_train.pdf',
+        figs_dir / 'stationary_vs_nonstationary_train.png',
+        figs_dir / 'stationary_vs_nonstationary_train.pdf',
         titles=('Stationary AR(1) (class 1)', 'Random walk (class 0)'),
     )
+    _boxed_two_panel_plot(
+        test_df,
+        figs_dir / 'stationary_vs_nonstationary_test.png',
+        figs_dir / 'stationary_vs_nonstationary_test.pdf',
+        titles=('Stationary AR(1) (class 1)', 'Random walk (class 0)'),
+    )
+    print('✓ boxed figures written to', figs_dir)

@@ -299,7 +299,7 @@ class DataScienceBenchAgent(Agent):
         # Find each message with "already displayed to user" and remove it
         if self.cfg and self.cfg.is_plotting_enabled:
 
-            def save_png(pngs):
+            def save_png(pngs: list[str]) -> None:
                 # Save all the images in a list inside the evaluation folder
                 assert self.cfg is not None, (
                     'Config must be provided for saving images.'
@@ -459,6 +459,7 @@ class DataScienceBenchAgent(Agent):
 
         Args:
             events: The list of events to convert to messages
+            initial_user_message: The first user message from the conversation
 
         Returns:
             list[Message]: A list of formatted messages ready for LLM consumption, including:

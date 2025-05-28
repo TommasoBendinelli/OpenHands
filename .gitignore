@@ -245,3 +245,4 @@ containers/runtime/code
 outputs/
 evaluation/benchmarks/data_science_bench/**/*.png
 evaluation/benchmarks/data_science_bench/**/*.csv
+evaluation/benchmarks/data_science_bench/**/*.pdf
