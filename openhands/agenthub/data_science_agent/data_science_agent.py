@@ -8,7 +8,7 @@ import pandas as pd
 from litellm import ChatCompletionToolParam
 from omegaconf import DictConfig
 
-import openhands.agenthub.codeact_agent.function_calling as codeact_function_calling
+import openhands.agenthub.data_science_agent.function_calling as ds_function_calling
 
 # from openhands.agenthub.error_bench_agent.tools.llm_based_edit import LLMBasedFileEditTool
 # from openhands.agenthub.error_bench_agent.tools.str_replace_editor import (
@@ -28,6 +28,7 @@ from openhands.core.message import Message
 from openhands.events.action import (
     Action,
     AgentFinishAction,
+    MessageAction,
 )
 from openhands.events.event import Event
 from openhands.llm.llm import LLM
@@ -88,7 +89,7 @@ class DataScienceBenchAgent(Agent):
         self.pending_actions: deque[Action] = deque()
         self.reset()
         self.tools = self._get_tools()
-        self.prompt_manager = PromptManager(
+        self._prompt_manager = PromptManager(
             prompt_dir=os.path.join(os.path.dirname(__file__), 'prompts'),
         )
         # Create a ConversationMemory instance
@@ -98,7 +99,7 @@ class DataScienceBenchAgent(Agent):
         logger.debug(f'Using condenser: {type(self.condenser)}')
 
         self.response_to_actions_fn = partial(
-            codeact_function_calling.response_to_actions, cfg=self.cfg
+            ds_function_calling.response_to_actions, cfg=self.cfg
         )
 
     def _get_tools(self) -> list[ChatCompletionToolParam]:
@@ -118,7 +119,9 @@ class DataScienceBenchAgent(Agent):
             tools.append(create_cmd_run_tool(use_short_description=use_short_tool_desc))
         if self.config.enable_think:
             tools.append(ThinkTool)
-        if self.config.enable_finish and not self.cfg.keep_going_until_succeed:
+        if self.config.enable_finish and not (
+            self.cfg and self.cfg.keep_going_until_succeed
+        ):
             tools.append(FinishTool)
         # if self.config.enable_browsing:
         #     tools.append(WebReadTool)
@@ -180,7 +183,7 @@ class DataScienceBenchAgent(Agent):
             f'Processing {len(condensed_history)} events from a total of {len(state.history)} events'
         )
 
-        if self.cfg.is_plotting_enabled:
+        if self.cfg and self.cfg.is_plotting_enabled:
             content = [x.content for x in condensed_history if 'content' in x.__dict__]
             # Find all the times where data:image/png;base64, appears in the text
             text = '\n'.join(content)
@@ -192,7 +195,8 @@ class DataScienceBenchAgent(Agent):
                     #     f.write(png.encode('utf-8'))
                     png = line.split('data:image/png;base64,')[1].split(')')[0]
                     pngs.append(png)
-        messages = self._get_messages(condensed_history)
+        initial_user_message = self._get_initial_user_message(state.history)
+        messages = self._get_messages(condensed_history, initial_user_message)
         params: dict = {
             'messages': self.llm.format_messages_for_llm(messages),
         }
@@ -203,7 +207,7 @@ class DataScienceBenchAgent(Agent):
             existing_names = {tool['function']['name'] for tool in params['tools']}
             unique_mcp_tools = [
                 tool
-                for tool in self.mcp_tools
+                for tool in self.mcp_tools.values()
                 if tool['function']['name'] not in existing_names
             ]
 
@@ -229,18 +233,20 @@ class DataScienceBenchAgent(Agent):
         params['extra_body'] = {'metadata': state.to_llm_metadata(agent_name=self.name)}
 
         # Remove anything that is more than contains more than 100 digits in a row
-        if self.cfg.disable_numbers:
+        if self.cfg and self.cfg.disable_numbers:
             # Get the data if not already there
             if 'numberical_values' not in dir(self):
                 # Get the data file
 
                 # Open the file
-                df = pd.read_csv(
-                    f'evaluation/benchmarks/error_bench/tasks/{self.cfg.class_type}/{self.cfg.instance}/train.csv'
-                )
-                # Extract all the the numbers of the first five rows and convert them to a string
-
-                self.numberical_values = df.values.flatten()[:1000].tolist()
+                if self.cfg:
+                    df = pd.read_csv(
+                        f'evaluation/benchmarks/error_bench/tasks/{self.cfg.class_type}/{self.cfg.instance}/train.csv'
+                    )
+                    # Extract all the numbers of the first five rows and convert them to a list
+                    self.numberical_values = df.values.flatten()[:1000].tolist()
+                else:
+                    self.numberical_values = []
 
             for message in params['messages']:
                 # try:
@@ -272,12 +278,12 @@ class DataScienceBenchAgent(Agent):
                         counter += 1
 
                     if counter > 20:
-                        if 'gemini' in self.cfg.llm_config:
+                        if self.cfg and 'gemini' in self.cfg.llm_config:
                             # Replace the message with a placeholder
                             message['content'][0]['text'] = (
                                 'Raw numbers of the dataset not available. Report this error to the user and keep going.'
                             )
-                        elif 'claude' in self.cfg.llm_config:
+                        elif self.cfg and 'claude' in self.cfg.llm_config:
                             # Replace the message with a placeholder
                             message['content'] = (
                                 'Raw numbers of the dataset not available. Report this error to the and keep going.'
@@ -308,7 +314,7 @@ class DataScienceBenchAgent(Agent):
         # self.uuid4
 
         # Find each message with "already displayed to user" and remove it
-        if self.cfg.is_plotting_enabled:
+        if self.cfg and self.cfg.is_plotting_enabled:
 
             def save_png(pngs):
                 # Save all the images in a list inside the evaluation folder
@@ -328,10 +334,14 @@ class DataScienceBenchAgent(Agent):
             for idx, message in enumerate(params['messages']):
                 rebuilt = []
                 # rebuild this message’s content
-                if isinstance(message['content'], list) and (
-                    'gemini' in self.cfg.llm_config
-                    or 'gpt' in self.cfg.llm_config
-                    or 'llama' in self.cfg.llm_config
+                if (
+                    isinstance(message['content'], list)
+                    and self.cfg
+                    and (
+                        'gemini' in self.cfg.llm_config
+                        or 'gpt' in self.cfg.llm_config
+                        or 'llama' in self.cfg.llm_config
+                    )
                 ):
                     for part in message['content']:
                         if (
@@ -367,9 +377,12 @@ class DataScienceBenchAgent(Agent):
 
                 elif (
                     isinstance(message, dict)
-                    and 'claude' in self.cfg.llm_config
-                    or 'gpt' in self.cfg.llm_config
-                    or 'llama' in self.cfg.llm_config
+                    and self.cfg
+                    and (
+                        'claude' in self.cfg.llm_config
+                        or 'gpt' in self.cfg.llm_config
+                        or 'llama' in self.cfg.llm_config
+                    )
                 ):
                     if (
                         'content' in message
@@ -424,7 +437,26 @@ class DataScienceBenchAgent(Agent):
             self.pending_actions.append(action)
         return self.pending_actions.popleft()
 
-    def _get_messages(self, events: list[Event]) -> list[Message]:
+    def _get_initial_user_message(self, history: list[Event]) -> MessageAction:
+        """Finds the initial user message action from the full history."""
+        initial_user_message: MessageAction | None = None
+        for event in history:
+            if isinstance(event, MessageAction) and event.source == 'user':
+                initial_user_message = event
+                break
+
+        if initial_user_message is None:
+            logger.error(
+                f'CRITICAL: Could not find the initial user MessageAction in the full {len(history)} events history.'
+            )
+            raise ValueError(
+                'Initial user message not found in history. Please report this issue.'
+            )
+        return initial_user_message
+
+    def _get_messages(
+        self, events: list[Event], initial_user_message: MessageAction
+    ) -> list[Message]:
         """Constructs the message history for the LLM conversation.
 
         This method builds a structured conversation history by processing events from the state
@@ -461,6 +493,7 @@ class DataScienceBenchAgent(Agent):
         # Use ConversationMemory to process events (including SystemMessageAction)
         messages = self.conversation_memory.process_events(
             condensed_history=events,
+            initial_user_action=initial_user_message,
             max_message_chars=self.llm.config.max_message_chars,
             vision_is_active=self.llm.vision_is_active(),
         )

@@ -15,7 +15,6 @@ from openhands.agenthub.codeact_agent.tools import (
     IPythonTool,
     LLMBasedFileEditTool,
     ThinkTool,
-    WebReadTool,
     create_cmd_run_tool,
     create_str_replace_editor_tool,
 )
@@ -30,17 +29,14 @@ from openhands.events.action import (
     AgentFinishAction,
     AgentThinkAction,
     BrowseInteractiveAction,
-    BrowseURLAction,
     CmdRunAction,
     FileEditAction,
     FileReadAction,
     IPythonRunCellAction,
     MessageAction,
 )
-from openhands.events.action.mcp import McpAction
 from openhands.events.event import FileEditSource, FileReadSource
 from openhands.events.tool import ToolCallMetadata
-from openhands.mcp import MCPClientTool
 
 
 def combine_thought(action: Action, thought: str) -> Action:
@@ -53,11 +49,12 @@ def combine_thought(action: Action, thought: str) -> Action:
     return action
 
 
-def response_to_actions(response: ModelResponse) -> list[Action]:
+def response_to_actions(response: ModelResponse, cfg=None) -> list[Action]:
     actions: list[Action] = []
     assert len(response.choices) == 1, 'Only one choice is supported for now'
     choice = response.choices[0]
     assistant_msg = choice.message
+
     if hasattr(assistant_msg, 'tool_calls') and assistant_msg.tool_calls:
         # Check if there's assistant_msg.content. If so, add it to the thought
         thought = ''
@@ -72,9 +69,6 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
         for i, tool_call in enumerate(assistant_msg.tool_calls):
             action: Action
             logger.debug(f'Tool call in function_calling.py: {tool_call}')
-
-            
-
             try:
                 arguments = json.loads(tool_call.function.arguments)
             except json.decoder.JSONDecodeError as e:
@@ -85,7 +79,6 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
             # ================================================
             # CmdRunTool (Bash)
             # ================================================
-
             if tool_call.function.name == create_cmd_run_tool()['function']['name']:
                 if 'command' not in arguments:
                     raise FunctionCallValidationError(
@@ -94,6 +87,7 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                 # convert is_input to boolean
                 is_input = arguments.get('is_input', 'false') == 'true'
                 action = CmdRunAction(command=arguments['command'], is_input=is_input)
+
             # ================================================
             # IPythonTool (Jupyter)
             # ================================================
@@ -102,6 +96,41 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     raise FunctionCallValidationError(
                         f'Missing required argument "code" in tool call {tool_call.function.name}'
                     )
+                if cfg.is_sklearn_banned:
+                    # Check if sklearn is in the code
+                    if 'import sklearn' in arguments['code']:
+                        # Then inject a raise Exception at the beginning of the code"
+                        arguments['code'] = "raise Exception('sklearn is disabled!')\n"
+
+                    if 'from sklearn' in arguments['code']:
+                        # Then inject a raise Exception at the beginning of the code"
+                        arguments['code'] = "raise Exception('sklearn is disabled!')\n"
+
+                if cfg.is_read_csv_banned:
+                    # Check if read_csv is in the code
+                    if 'pd.read_csv' in arguments['code']:
+                        # Then inject a raise Exception at the beginning of the code"
+                        arguments['code'] = (
+                            "raise Exception('you are not allowed to use pd.read_csv!')\n"
+                        )
+
+                if '/mnt/test_gt.csv' in arguments['code']:
+                    # Then inject a raise Exception at the beginning of the code"
+                    arguments['code'] = (
+                        "raise Exception('you are not allowed to use /mnt/test_gt.csv!')\n"
+                    )
+                # Check if there is plt.savefig() in the code and replace it with plt.show()
+                if 'plt.savefig' in arguments['code']:
+                    # Then inject a raise Exception at the beginning of the code"
+                    # (use a regex so we wipe out everything between the parentheses)
+                    import re
+
+                    arguments['code'] = re.sub(
+                        r'plt\.savefig\s*\([^)]*\)',  # the whole savefig(…)
+                        'plt.show()',  # replacement
+                        arguments['code'],
+                    )
+
                 action = IPythonRunCellAction(code=arguments['code'])
             elif tool_call.function.name == 'delegate_to_browsing_agent':
                 action = AgentDelegateAction(
@@ -186,24 +215,24 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     )
                 action = BrowseInteractiveAction(browser_actions=arguments['code'])
 
-            # ================================================
-            # WebReadTool (simplified browsing)
-            # ================================================
-            elif tool_call.function.name == WebReadTool['function']['name']:
-                if 'url' not in arguments:
-                    raise FunctionCallValidationError(
-                        f'Missing required argument "url" in tool call {tool_call.function.name}'
-                    )
-                action = BrowseURLAction(url=arguments['url'])
+            # # ================================================
+            # # WebReadTool (simplified browsing)
+            # # ================================================
+            # elif tool_call.function.name == WebReadTool['function']['name']:
+            #     if 'url' not in arguments:
+            #         raise FunctionCallValidationError(
+            #             f'Missing required argument "url" in tool call {tool_call.function.name}'
+            #         )
+            #     action = BrowseURLAction(url=arguments['url'])
 
             # ================================================
             # McpAction (MCP)
             # ================================================
-            elif tool_call.function.name.endswith(MCPClientTool.postfix()):
-                action = McpAction(
-                    name=tool_call.function.name.removesuffix(MCPClientTool.postfix()),
-                    arguments=tool_call.function.arguments,
-                )
+            # elif tool_call.function.name.endswith(MCPClientTool.postfix()):
+            #     action = McpAction(
+            #         name=tool_call.function.name.removesuffix(MCPClientTool.postfix()),
+            #         arguments=tool_call.function.arguments,
+            #     )
             else:
                 raise FunctionCallNotExistsError(
                     f'Tool {tool_call.function.name} is not registered. (arguments: {arguments}). Please check the tool name and retry with an existing tool.'

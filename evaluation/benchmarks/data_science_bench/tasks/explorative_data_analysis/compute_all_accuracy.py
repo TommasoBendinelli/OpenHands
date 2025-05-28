@@ -3,7 +3,9 @@ import sys
 from pathlib import Path
 
 # Directory that contains all tasks
-TASKS_ROOT = Path('evaluation/benchmarks/error_bench/tasks/explorative_data_analysis')
+TASKS_ROOT = Path(
+    'evaluation/benchmarks/data_science_bench/tasks/explorative_data_analysis'
+)
 # Folders to ignore while scanning for tasks
 SKIP_DIRS = {'old', '__pycache__', 'utils'}
 
