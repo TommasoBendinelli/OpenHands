@@ -40,7 +40,7 @@ from .benchmark_additions import kill_instance, safe_append,errorbench_user_resp
 
 AGENT_RESPONSE_HANDLERS = {
     'CodeActAgent': codeact_user_response,
-    'ErrorBench': partial(errorbench_user_response, encapsulate_solution=True),
+    'DataScienceBenchAgent': partial(errorbench_user_response, encapsulate_solution=True),
 }
 
 LOCAL_DATASET_PATH = os.path.join(os.path.dirname(__file__), 'benchmark')
@@ -67,7 +67,7 @@ def configure_app_for_evaluation(metadata: EvalMetadata, cfg: OmegaConf) -> AppC
     sandbox_config = get_default_sandbox_config_for_eval()
     sandbox_config.base_container_image = 'python:3.12-bookworm'
     sandbox_config.runtime_extra_deps = '/openhands/poetry/openhands-ai-5O4_aCHf-py3.12/bin/python  -m pip install numpy matplotlib pandas && python3 -m pip install numpy pandas matplotlib'
-    metadata.agent_class = 'ErrorBench'
+    metadata.agent_class = 'DataScienceBenchAgent'
 
     config = AppConfig(
         default_agent=metadata.agent_class,
@@ -108,21 +108,21 @@ def initialize_runtime(
     #     json.dump(metadata, f)
 
     base_path = Path(
-        f"evaluation/benchmarks/error_bench/tasks/{instance['class_type'] }/{instance['example']}/"
+        f"evaluation/benchmarks/data_science_bench/tasks/{instance['class_type'] }/{instance['example']}/"
     )
     if instance['fold'] != -1:
         base_path = base_path / f"fold_{instance['fold']}"
     if instance['class_type'] == 'dummy_anomaly':
         runtime.copy_to(
-            'evaluation/benchmarks/error_bench/tasks/cheating/dataset.csv', '/workspace'
+            'evaluation/benchmarks/data_science_bench/tasks/cheating/dataset.csv', '/workspace'
         )
-        runtime.copy_to('evaluation/benchmarks/error_bench/tasks/test.py', '/workspace')
+        runtime.copy_to('evaluation/benchmarks/data_science_bench/tasks/test.py', '/workspace')
         runtime.copy_to('X.npy', '/workspace')
         runtime.copy_to('y.npy', '/workspace')
         runtime.copy_to('description.txt', '/workspace')
 
     elif instance['class_type'] == 'data_inputation':
-        path = f"evaluation/benchmarks/error_bench/tasks/data_inputation/{instance['example']}/MNAR_corrupted_.csv"
+        path = f"evaluation/benchmarks/data_science_bench/tasks/data_inputation/{instance['example']}/MNAR_corrupted_.csv"
         import shutil
 
         shutil.copy(path, 'data.csv')
@@ -131,11 +131,11 @@ def initialize_runtime(
         # Delete the temp file
         os.remove('data.csv')
 
-        path = f"evaluation/benchmarks/error_bench/tasks/data_inputation/{instance['example']}/clean.csv"
+        path = f"evaluation/benchmarks/data_science_bench/tasks/data_inputation/{instance['example']}/clean.csv"
         runtime.copy_to(path, '/mnt')
 
         # Also copy the file to test the solution
-        path = f"evaluation/benchmarks/error_bench/tasks/data_inputation/{instance['example']}/compute_accuracy.py"
+        path = f"evaluation/benchmarks/data_science_bench/tasks/data_inputation/{instance['example']}/compute_accuracy.py"
         runtime.copy_to(path, '/mnt')
 
     elif instance['class_type'] == 'anomaly_detections':
@@ -154,7 +154,7 @@ def initialize_runtime(
         runtime.copy_to(path, '/mnt')
 
         # Also copy the file to test the solution
-        path = 'evaluation/benchmarks/error_bench/tasks/anomaly_detections/compute_accuracy.py'
+        path = 'evaluation/benchmarks/data_science_bench/tasks/anomaly_detections/compute_accuracy.py'
         runtime.copy_to(path, '/mnt')
 
     elif instance['class_type'] == 'explorative_data_analysis':
@@ -289,7 +289,7 @@ def process_instance(
     elif instance['class_type'] == 'explorative_data_analysis':
         # if instance['example'] in ['find_peaks', 'predict_ts_stationarity']:
         with open(
-            'evaluation/benchmarks/error_bench/tasks/explorative_data_analysis/metadata.json',
+            'evaluation/benchmarks/data_science_bench/tasks/explorative_data_analysis/metadata.json',
             'r',
         ) as f:
             metadata_json = json.load(f)
@@ -303,7 +303,7 @@ def process_instance(
             # Open the specific metadata file
             with open(
                 Path(
-                    'evaluation/benchmarks/error_bench/tasks/explorative_data_analysis/'
+                    'evaluation/benchmarks/data_science_bench/tasks/explorative_data_analysis/'
                 )
                 / instance['example']
                 / 'metadata.json',

@@ -1,4 +1,4 @@
-from openhands.agenthub.error_bench_agent.error_agent import ErrorAgent
+from openhands.agenthub.data_science_agent.data_science_agent import DataScienceBenchAgent
 from openhands.controller.agent import Agent
 
-Agent.register('ErrorBench', ErrorAgent)
+Agent.register('DataScienceBenchAgent', DataScienceBenchAgent)

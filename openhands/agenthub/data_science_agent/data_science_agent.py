@@ -42,10 +42,10 @@ from openhands.runtime.plugins import (
 from openhands.utils.prompt import PromptManager
 
 
-class ErrorAgent(Agent):
+class DataScienceBenchAgent(Agent):
     VERSION = '2.2'
     """
-    The ErrorAgent is based on the CodeActAgent.
+    The DataScienceBenchAgent is based on the CodeActAgent.
     The agent works by passing the model a list of action-observation pairs and prompting the model to take the next step.
 
     ### Overview
