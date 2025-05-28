@@ -38,7 +38,7 @@ from openhands.utils.async_utils import call_async_from_sync
 from .benchmark_additions import kill_instance, safe_append,errorbench_user_response
 
 
-AGENT_RESPONSE_HANDLERS = {
+AGENT_CLS_TO_FAKE_USER_RESPONSE_FN = {
     'CodeActAgent': codeact_user_response,
     'DataScienceBenchAgent': partial(errorbench_user_response, encapsulate_solution=True),
 }
