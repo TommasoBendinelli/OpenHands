@@ -2,7 +2,20 @@ import json
 from pathlib import Path
 from typing import cast
 
-from datasets import Dataset, load_dataset
+# ``datasets`` is an optional dependency used for loading the TestGenEval
+# benchmark from Hugging Face. Importing it unconditionally breaks test
+# collection when the library is not installed, so we handle the import
+# gracefully and provide a fallback implementation that raises an informative
+# error when remote datasets are requested.
+try:
+    from datasets import Dataset, load_dataset  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - exercised only when optional dep is missing
+    Dataset = None  # type: ignore
+
+    def load_dataset(*_args, **_kwargs):
+        raise ModuleNotFoundError(
+            "The 'datasets' package is required to load TestGenEval datasets."
+        )
 
 from evaluation.benchmarks.testgeneval.constants import (
     KEY_INSTANCE_ID,
@@ -54,7 +67,13 @@ def load_testgeneval_dataset(
         dataset = json.loads(Path(name).read_text())
         dataset_ids = {instance[KEY_INSTANCE_ID] for instance in dataset}
     else:
-        # Load from Hugging Face Datasets
+        # Load from Hugging Face Datasets. ``datasets`` might be unavailable
+        # in minimal testing environments, so we raise a clear error if it is
+        # missing when a remote dataset is requested.
+        if Dataset is None:
+            raise ModuleNotFoundError(
+                "The 'datasets' package is required to download TestGenEval datasets."
+            )
         if name.lower() in {'testgeneval'}:
             name = 'kjain14/testgeneval'
         elif name.lower() in {'testgeneval-lite', 'testgenevallite', 'lite'}:

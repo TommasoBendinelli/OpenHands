@@ -1,6 +1,12 @@
 import os
+import shutil
 import tempfile
 import time
+
+import pytest
+
+if shutil.which("tmux") is None:
+    pytest.skip("tmux is not installed", allow_module_level=True)
 
 from openhands.core.logger import openhands_logger as logger
 from openhands.events.action import CmdRunAction

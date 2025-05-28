@@ -5,6 +5,8 @@ import sys
 import docx
 import pytest
 
+pytest.importorskip("reportlab", reason="reportlab is required for PDF tests")
+
 from openhands.runtime.plugins.agent_skills.file_ops.file_ops import (
     WINDOW,
     _print_window,

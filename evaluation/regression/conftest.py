@@ -8,7 +8,12 @@ import pytest
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CASES_DIR = os.path.join(SCRIPT_DIR, 'cases')
-AGENTHUB_DIR = os.path.join(SCRIPT_DIR, '../', 'agenthub')
+# The agenthub directory lives inside the main ``openhands`` package. Using a
+# relative path to locate it ensures the regression tests can discover the
+# available agents when run from the repository root.
+AGENTHUB_DIR = os.path.abspath(
+    os.path.join(SCRIPT_DIR, '..', '..', 'openhands', 'agenthub')
+)
 
 
 def agents():
@@ -119,8 +124,10 @@ def run_test_case(test_cases_dir, workspace_dir, request):
 
         shutil.rmtree(os.path.join(agent_dir, 'workspace'), ignore_errors=True)
         if os.path.isdir(os.path.join(case_dir, 'start')):
-            os.copytree(
-                os.path.join(case_dir, 'start'), os.path.join(agent_dir, 'workspace')
+            # ``shutil.copytree`` is used instead of the non-existent ``os.copytree``.
+            shutil.copytree(
+                os.path.join(case_dir, 'start'),
+                os.path.join(agent_dir, 'workspace'),
             )
         else:
             os.makedirs(os.path.join(agent_dir, 'workspace'))
