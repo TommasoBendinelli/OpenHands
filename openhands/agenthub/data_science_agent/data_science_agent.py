@@ -15,11 +15,11 @@ import openhands.agenthub.codeact_agent.function_calling as codeact_function_cal
 #     create_str_replace_editor_tool,
 # )
 from openhands.agenthub.codeact_agent.tools.think import ThinkTool
-from openhands.agenthub.error_bench_agent.tools.bash import create_cmd_run_tool
+from openhands.agenthub.data_science_agent.tools.bash import create_cmd_run_tool
 
 # from openhands.agenthub.error_bench_agent.tools.browser import BrowserTool
-from openhands.agenthub.error_bench_agent.tools.finish import FinishTool
-from openhands.agenthub.error_bench_agent.tools.ipython import IPythonTool
+from openhands.agenthub.data_science_agent.tools.finish import FinishTool
+from openhands.agenthub.data_science_agent.tools.ipython import IPythonTool
 from openhands.controller.agent import Agent
 from openhands.controller.state.state import State
 from openhands.core.config import AgentConfig
@@ -309,7 +309,6 @@ class DataScienceBenchAgent(Agent):
 
         # Find each message with "already displayed to user" and remove it
         if self.cfg.is_plotting_enabled:
-            
 
             def save_png(pngs):
                 # Save all the images in a list inside the evaluation folder
@@ -417,7 +416,7 @@ class DataScienceBenchAgent(Agent):
             new_msx = params
 
         response = self.llm.completion(**new_msx)
-        
+
         logger.debug(f'Response from LLM: {response}')
         actions = self.response_to_actions_fn(response)
         logger.debug(f'Actions after response_to_actions: {actions}')
