@@ -261,6 +261,9 @@ def process_instance(
     else:
         logger.info(f'Starting evaluation for instance {instance_id}.')
 
+    # create the runtime configuration for this evaluation run
+    config = configure_app_for_evaluation(metadata, cfg)
+
     if instance['class_type'] == 'dummy_anomaly':
         contraints = []
         contraints.append('describe')
