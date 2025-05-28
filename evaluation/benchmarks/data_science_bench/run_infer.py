@@ -623,7 +623,7 @@ def main(cfg):
     args.eval_output_dir = str(metadata_dir)
     metadata = make_metadata(
         llm_config,
-        'ErrorBenchmark',
+        'Data_Science_Benchmark',
         args.agent_cls,
         args.max_budget_per_task,
         args.eval_note,
