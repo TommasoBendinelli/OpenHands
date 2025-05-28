@@ -8,7 +8,9 @@ import pytest
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CASES_DIR = os.path.join(SCRIPT_DIR, 'cases')
-AGENTHUB_DIR = os.path.join(SCRIPT_DIR, '../', 'agenthub')
+AGENTHUB_DIR = os.path.abspath(
+    os.path.join(SCRIPT_DIR, '..', '..', 'openhands', 'agenthub')
+)
 
 
 def agents():

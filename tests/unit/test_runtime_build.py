@@ -27,6 +27,11 @@ from openhands.runtime.utils.runtime_build import (
     truncate_hash,
 )
 
+try:
+    docker.from_env().ping()
+except Exception:
+    pytest.skip("docker daemon is not available", allow_module_level=True)
+
 OH_VERSION = f'oh_v{oh_version}'
 DEFAULT_BASE_IMAGE = 'nikolaik/python-nodejs:python3.12-nodejs22'
 

@@ -305,6 +305,7 @@ def _process_instance_wrapper(
     instance: pd.Series,
     metadata: EvalMetadata,
     use_mp: bool,
+    process_instance_kwargs: dict | None = None,
     max_retries: int = 5,
     timeout_seconds: int | None = None,
 ) -> EvalOutput:
@@ -317,6 +318,9 @@ def _process_instance_wrapper(
             sig = signature(process_instance_func)
             if 'runtime_failure_count' in sig.parameters:
                 kwargs['runtime_failure_count'] = runtime_failure_count
+
+            if process_instance_kwargs is not None:
+                kwargs.update(process_instance_kwargs)
 
             if timeout_seconds is not None:
                 with timeout(timeout_seconds):
@@ -392,6 +396,7 @@ def run_evaluation(
     process_instance_func: Callable[
         [pd.Series, EvalMetadata, bool], Awaitable[EvalOutput]
     ],
+    process_instance_kwargs: dict | None = None,
     max_retries: int = 5,  # number of retries for each instance
     timeout_seconds: int | None = None,
 ):
@@ -419,6 +424,7 @@ def run_evaluation(
                         instance,
                         metadata,
                         True,
+                        process_instance_kwargs,
                         max_retries,
                         timeout_seconds,
                     )
@@ -434,7 +440,9 @@ def run_evaluation(
                     instance=instance,
                     metadata=metadata,
                     use_mp=False,
+                    process_instance_kwargs=process_instance_kwargs,
                     max_retries=max_retries,
+                    timeout_seconds=timeout_seconds,
                 )
                 update_progress(result, pbar, output_fp)
 

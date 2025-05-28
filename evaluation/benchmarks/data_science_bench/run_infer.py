@@ -253,7 +253,6 @@ def process_instance(
     cfg: OmegaConf = None,
 ) -> EvalOutput:
     instance_id = instance.instance_id  # .replace('/', '__')
-    config = get_config(metadata, cfg=cfg)
 
     # Set up the logger properly, so you can run multi-processing to parallelize the evaluation
     if reset_logger:
@@ -619,17 +618,15 @@ def main(cfg):
     Path(metadata_dir / '.hydra').mkdir(parents=True, exist_ok=True)
     with open(metadata_dir / '.hydra' / 'config.yaml', 'w') as f:
         OmegaConf.save(cfg, f)
-    args.max_budget_per_task = cfg.max_budget_per_task
+    args.max_iterations = cfg.max_iterations
     args.eval_output_dir = str(metadata_dir)
     metadata = make_metadata(
         llm_config,
-        'Data_Science_Benchmark',
+        str(cfg.instance),
         args.agent_cls,
-        args.max_budget_per_task,
+        args.max_iterations,
         args.eval_note,
         args.eval_output_dir,
-        args.eval_n_limit,
-        task_name=cfg.instance,
     )
 
     args.eval_n_limit = 1
@@ -645,7 +642,7 @@ def main(cfg):
         output_file,
         args.eval_num_workers,
         process_instance,
-        cfg=cfg,
+        process_instance_kwargs={"cfg": cfg},
     )
 
     # Add the output file to the trajectory visualiser folder
