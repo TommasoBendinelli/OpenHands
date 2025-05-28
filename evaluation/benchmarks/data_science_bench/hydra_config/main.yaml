@@ -27,6 +27,7 @@ instruction_constraint: ''
 is_sklearn_banned: True
 max_iterations: 100
 temperature: 0
+max_retries: 1
 top_p: 1
 disable_numbers: False
 is_plotting_enabled: True

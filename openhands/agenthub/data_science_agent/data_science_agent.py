@@ -184,7 +184,7 @@ class DataScienceBenchAgent(Agent):
         )
 
         if self.cfg and self.cfg.is_plotting_enabled:
-            content = [x.content for x in condensed_history if 'content' in x.__dict__]
+            content = [x.content for x in condensed_history if hasattr(x, 'content')]
             # Find all the times where data:image/png;base64, appears in the text
             text = '\n'.join(content)
             pngs = []
@@ -263,7 +263,11 @@ class DataScienceBenchAgent(Agent):
                     elif isinstance(candidate, str):
                         text = candidate
                     else:
-                        breakpoint()
+                        # Raise an error if the content is not a string or dict
+                        raise ValueError(
+                            f'Unsupported content type: {type(candidate)} in message: {message}'
+                        )
+
                 # if 'gemini' in self.cfg.llm_config or 'llama' in self.cfg.llm_config:
                 #     text = message.get('content', '')[0]['text']
                 # elif 'claude' in self.cfg.llm_config:
@@ -291,33 +295,15 @@ class DataScienceBenchAgent(Agent):
                         # Replace the message with a placeholder
                         # message['content'][0]['text'] = "Raw numbers of the dataset not available. Report this to the user and keep going."
                         break
-                # If the text contains 4 or more consecutive digits, replace it with "Result not available"
-                # if counter > 4:
-
-                # # If the text contains 100 or more consecutive digits, replace it with "Result not available"
-                # if long_digits_pattern.search(text):
-                #     # Replace the message with a placeholder
-                #     message['content'][0]['text'] = "Raw numbers of the dataset not available"
-
-                # # if "0.344435  1.548645" in text:
-                # #     # Replace the message with a placeholder
-                # #     message['content'][0]['text'] = "Raw numbers of the dataset not available"
-
-                # filtered.append(message)
-                # # If there are more than 100 digits in a row, remove the message
-                # #if (
-
-                # # message['content'][0]['text']
-        # Go over the messages and if there is any with more  tokens, don't visualize it
-
-        # Load all the images
-        # self.uuid4
 
         # Find each message with "already displayed to user" and remove it
         if self.cfg and self.cfg.is_plotting_enabled:
 
             def save_png(pngs):
                 # Save all the images in a list inside the evaluation folder
+                assert self.cfg is not None, (
+                    'Config must be provided for saving images.'
+                )
                 images = Path(self.cfg.eval_output_dir) / 'images'
                 images.mkdir(parents=True, exist_ok=True)
                 # Save the images in the folder

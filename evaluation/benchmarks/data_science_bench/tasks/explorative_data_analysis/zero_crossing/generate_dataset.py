@@ -1,16 +1,19 @@
 # Add to the system path evaluation/benchmarks/error_bench/tasks/explorative_data_analysis
+import os
+import random
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.signal import welch
-import random
-from typing import Tuple
+
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from utils import save_datasets
-import click 
+import click
 import matplotlib.pyplot as plt
+from utils import save_datasets
+
+
 # ---------------------------------------------------------------------
 #  Core helpers
 # ---------------------------------------------------------------------
@@ -26,7 +29,7 @@ def band_power(signal, fs, band):
 def generate_synthetic_freq_band_signal(
     n_points: int,
     fs: int = 100,
-    target_band_hz: Tuple[int, int] = (0, 4),
+    target_band_hz: tuple[int, int] = (0, 4),
     noise_std: float = 0.5,
     max_noise_fraction: float = 0.99,
     rng: np.random.Generator | None = None,
@@ -48,7 +51,7 @@ def generate_synthetic_freq_band_signal(
         Standard deviation of the Gaussian noise *before* clipping.
     max_noise_fraction : float, optional
         Maximum fraction of |sample| that the noise is allowed to reach
-        in the **opposite** direction.  
+        in the **opposite** direction.
         Example: if a sample is 0.43 and `max_noise_fraction` = 0.99,
         the lowest the noisy sample can go is
         0.43 − 0.99·0.43 ≈ +0.0043 (still positive).
@@ -64,7 +67,7 @@ def generate_synthetic_freq_band_signal(
 
     # --- deterministic part -------------------------------------------------
     t = np.arange(n_points) / fs
-    freq = rng.uniform(*target_band_hz)        # carrier frequency
+    freq = rng.uniform(*target_band_hz)  # carrier frequency
     # Random initial phase
     phase = rng.uniform(0, 2 * np.pi)
     clean = np.sin(2 * np.pi * freq * t + phase)
@@ -76,20 +79,19 @@ def generate_synthetic_freq_band_signal(
     guard_band = max_noise_fraction * np.abs(clean)
 
     # For positive samples, limit negative noise; for negatives, limit positive noise
-    neg_limit = -guard_band        # lower bound for positive samples
-    pos_limit =  guard_band        # upper bound for negative samples
+    neg_limit = -guard_band  # lower bound for positive samples
+    pos_limit = guard_band  # upper bound for negative samples
 
     # Vectorised clipping
     noise = np.where(
-        clean > 0,                           # positive samples
-        np.maximum(noise, neg_limit),        # clip at neg_limit from below
+        clean > 0,  # positive samples
+        np.maximum(noise, neg_limit),  # clip at neg_limit from below
         np.where(
-            clean < 0,                       # negative samples
-            np.minimum(noise, pos_limit),    # clip at pos_limit from above
-            noise                            # samples exactly zero — leave unchanged
-        )
+            clean < 0,  # negative samples
+            np.minimum(noise, pos_limit),  # clip at pos_limit from above
+            noise,  # samples exactly zero — leave unchanged
+        ),
     )
-
 
     return clean + noise
 
@@ -130,6 +132,7 @@ def generate_dataset(
 #  Example CLI orchestration (mirrors your original script layout)
 # ---------------------------------------------------------------------
 
+
 @click.command()
 @click.option('--noise', default=300, help='Number of samples to generate.')
 @click.option('--nans', default=1000, help='Number of points per sample.')
@@ -142,13 +145,13 @@ def main(noise, nans):
     # Pick two training distributions to increase variety
     train_df = generate_dataset(noise_std=noise)
 
-    # Corrupt with 
+    # Corrupt with
 
     test_df = generate_dataset(noise_std=0.0)
 
     save_datasets(train_df=train_df, test_df=test_df, output_folder=output_folder)
     # Save CSVs
-    train_df_labels = train_df['label'].astype(int)
+    train_df['label'].astype(int)
     # train_df.to_csv(output_folder / 'train_labels.csv', index=False)
     # train_df = train_df.drop(columns=['label'])
     # train_df.to_csv(output_folder / 'train.csv', index=False)
@@ -157,17 +160,15 @@ def main(noise, nans):
     # X_test = test_df.drop(columns=['label'])
     # X_test.to_csv(output_folder / 'test.csv', index=False)
 
-
-
     # ── visual sanity-check (two boxed panels) ───────────────────────────────
     fig = plt.figure(figsize=(10, 4), dpi=150)
     ax0 = plt.subplot(1, 2, 1)
     ax1 = plt.subplot(1, 2, 2)
 
-    ax0.plot(train_df[train_df["label"] == 0].iloc[0, :-1])
-    ax0.set_title("High ZCR (class 0)", pad=6)
-    ax1.plot(train_df[train_df["label"] == 1].iloc[0, :-1])
-    ax1.set_title("Low ZCR  (class 1)", pad=6)
+    ax0.plot(train_df[train_df['label'] == 0].iloc[0, :-1])
+    ax0.set_title('High ZCR (class 0)', pad=6)
+    ax1.plot(train_df[train_df['label'] == 1].iloc[0, :-1])
+    ax1.set_title('Low ZCR  (class 1)', pad=6)
 
     for ax in (ax0, ax1):
         ax.set_xticks([])
@@ -176,14 +177,15 @@ def main(noise, nans):
         for spine in ax.spines.values():
             spine.set_visible(True)
             spine.set_linewidth(1)
-            spine.set_edgecolor("black")
+            spine.set_edgecolor('black')
 
     plt.tight_layout()
-    figs_dir = Path("67ff59b20231d9f95909f426/figs/datasets")
-    fig.savefig(figs_dir / "zero_crossing.png")
-    fig.savefig(figs_dir / "zero_crossing.pdf")
+    figs_dir = Path(
+        os.environ.get('FIGS_DIR', '67ff59b20231d9f95909f426/figs/datasets')
+    )
+    fig.savefig(figs_dir / 'zero_crossing.png')
+    fig.savefig(figs_dir / 'zero_crossing.pdf')
 
-    
 
 if __name__ == '__main__':
     main()

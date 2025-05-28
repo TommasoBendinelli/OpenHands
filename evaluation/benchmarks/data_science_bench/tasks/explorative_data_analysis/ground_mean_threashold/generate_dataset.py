@@ -22,6 +22,7 @@ With these tweaks, you must aggregate by `group_id` (or equivalent) to solve
 the task perfectly; single-row heuristics will top out well below 100 %.
 """
 
+import os
 import random
 import string
 import sys
@@ -78,28 +79,28 @@ def generate_dataset() -> pd.DataFrame:
 
     cols = (
         ['group_id', 'value_0']
-        + [f'value_{i+1}' for i in range(DISTRACTOR_COLS)]
+        + [f'value_{i + 1}' for i in range(DISTRACTOR_COLS)]
         + ['label']
     )
     return pd.DataFrame(rows, columns=cols)
 
-def combined_group_mean_plot(train_df: pd.DataFrame,
-                             test_df:  pd.DataFrame,
-                             threshold: float,
-                             out_png:   Path):
+
+def combined_group_mean_plot(
+    train_df: pd.DataFrame, test_df: pd.DataFrame, threshold: float, out_png: Path
+):
     """
     Compare the distribution of group means (value_0) in train and test,
     split and stacked by the true group label.
     """
     # --- compute per-group means and labels ---------------------------
-    tr_mean = train_df.groupby("group_id")["value_0"].mean()
-    tr_lbl  = train_df.groupby("group_id")["label"].first()
-    te_mean = test_df.groupby("group_id")["value_0"].mean()
-    te_lbl  = test_df.groupby("group_id")["label"].first()
+    tr_mean = train_df.groupby('group_id')['value_0'].mean()
+    tr_lbl = train_df.groupby('group_id')['label'].first()
+    te_mean = test_df.groupby('group_id')['value_0'].mean()
+    te_lbl = test_df.groupby('group_id')['label'].first()
     # --- common bin edges --------------------------------------------
-    bins = np.linspace(min(tr_mean.min(), te_mean.min()),
-                       max(tr_mean.max(), te_mean.max()),
-                       30)
+    bins = np.linspace(
+        min(tr_mean.min(), te_mean.min()), max(tr_mean.max(), te_mean.max()), 30
+    )
     centers = (bins[:-1] + bins[1:]) / 2
     # --- histogram counts --------------------------------------------
     tr0, _ = np.histogram(tr_mean[tr_lbl == 0], bins=bins)
@@ -111,19 +112,31 @@ def combined_group_mean_plot(train_df: pd.DataFrame,
 
     plt.figure(figsize=(10, 4))
     # train (offset left)
-    plt.bar(centers - 1.5*width, tr0, width=width,
-            alpha=0.6, label="train (label=0)")
-    plt.bar(centers - 1.5*width, tr1, width=width,
-            bottom=tr0, alpha=0.6, hatch="//", label="train (label=1)")
+    plt.bar(centers - 1.5 * width, tr0, width=width, alpha=0.6, label='train (label=0)')
+    plt.bar(
+        centers - 1.5 * width,
+        tr1,
+        width=width,
+        bottom=tr0,
+        alpha=0.6,
+        hatch='//',
+        label='train (label=1)',
+    )
     # test  (offset right)
-    plt.bar(centers + 1.5*width, te0, width=width,
-            alpha=0.6, label="test (label=0)")
-    plt.bar(centers + 1.5*width, te1, width=width,
-            bottom=te0, alpha=0.6, hatch="\\\\", label="test (label=1)")
+    plt.bar(centers + 1.5 * width, te0, width=width, alpha=0.6, label='test (label=0)')
+    plt.bar(
+        centers + 1.5 * width,
+        te1,
+        width=width,
+        bottom=te0,
+        alpha=0.6,
+        hatch='\\\\',
+        label='test (label=1)',
+    )
 
     # decision boundary
-    plt.xlabel("")
-    plt.ylabel("Count")
+    plt.xlabel('')
+    plt.ylabel('Count')
     plt.legend()
     plt.tight_layout()
     plt.savefig(out_png, dpi=150)
@@ -139,17 +152,19 @@ def main():
     test = generate_dataset()
     save_datasets(train, test, out_dir)
     # ── sanity check: group means separate cleanly at THRESH ──────────
-    grp_mean = train.groupby('group_id')['value_0'].mean()
-    grp_label = train.groupby('group_id')['label'].first()
+    train.groupby('group_id')['value_0'].mean()
+    train.groupby('group_id')['label'].first()
     plt = combined_group_mean_plot(
         train_df=train,
         test_df=test,
         threshold=THRESH,
-        out_png=out_dir / 'group_mean_example.png'
+        out_png=out_dir / 'group_mean_example.png',
     )
 
-    overleaf_path = Path("67ff59b20231d9f95909f426/figs/datasets")
-    plt.savefig(overleaf_path / 'group_mean_example.png', dpi=150)    
+    overleaf_path = Path(
+        os.environ.get('FIGS_DIR', '67ff59b20231d9f95909f426/figs/datasets')
+    )
+    plt.savefig(overleaf_path / 'group_mean_example.png', dpi=150)
     plt.savefig(overleaf_path / 'group_mean_example.pdf', dpi=150)
     # plt.hist(grp_mean[grp_label == 0], bins=30, alpha=0.6, label='label 0')
     # plt.hist(grp_mean[grp_label == 1], bins=30, alpha=0.6, label='label 1')

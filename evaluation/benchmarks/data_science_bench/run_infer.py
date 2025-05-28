@@ -652,6 +652,7 @@ def main(cfg):
         args.eval_num_workers,
         process_instance,
         process_instance_kwargs={'cfg': cfg},
+        max_retries=cfg.max_retries,
     )
 
     # Add the output file to the trajectory visualiser folder

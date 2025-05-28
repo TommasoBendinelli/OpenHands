@@ -13,16 +13,17 @@ generate_peak_dataset.py – peak‑count benchmark **non‑overlapping** v2
 Under these settings the one‑feature decision stump that learns
 "count ≥ 4.5" still perfectly separates the two classes.
 """
+
 from __future__ import annotations
 
+import os
+import random
 import sys
 from pathlib import Path
-from typing import Tuple, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import random
 
 # If utils.save_datasets is one directory up
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -47,9 +48,9 @@ def _sample_non_overlapping_peaks(
     min_sigma: float,
     max_sigma: float,
     sep_factor: float = 3.0,  # multiply σ to define the exclusion radius
-) -> List[tuple[int, float, float]]:
+) -> list[tuple[int, float, float]]:
     """Return a list of (centre, sigma, amplitude) for non‑overlapping peaks."""
-    peaks: List[tuple[int, float, float]] = []
+    peaks: list[tuple[int, float, float]] = []
     attempts = 0
     max_attempts = 10_000  # safeguard against infinite loops
     while len(peaks) < n_peaks and attempts < max_attempts:
@@ -63,7 +64,7 @@ def _sample_non_overlapping_peaks(
         left_margin = int(np.ceil(sep_factor * sigma))
         right_margin = n_points - left_margin
         if right_margin <= left_margin:
-            raise ValueError("Signal too short for the requested peak parameters.")
+            raise ValueError('Signal too short for the requested peak parameters.')
         centre = int(rng.integers(left_margin, right_margin))
 
         # check overlap with existing peaks
@@ -77,8 +78,8 @@ def _sample_non_overlapping_peaks(
 
     if len(peaks) < n_peaks:
         raise RuntimeError(
-            f"Could only place {len(peaks)} non‑overlapping peaks after {attempts} attempts; "
-            "try reducing `n_peaks` or `max_sigma`, or shortening `sep_factor`."
+            f'Could only place {len(peaks)} non‑overlapping peaks after {attempts} attempts; '
+            'try reducing `n_peaks` or `max_sigma`, or shortening `sep_factor`.'
         )
     return peaks
 
@@ -129,7 +130,7 @@ def _one_sample(
     max_pk0: int,
     min_pk1: int,
     max_pk1: int,
-) -> Tuple[np.ndarray, int]:
+) -> tuple[np.ndarray, int]:
     n_peaks = (
         rng.integers(min_pk0, max_pk0 + 1)
         if label == 0
@@ -151,7 +152,7 @@ def generate_dataset(
     n_points: int = 1000,
     noise_std: float = 0.2,
     min_peak_height: float = 2.0,  #  X – minimum allowed peak amplitude
-    min_peak_area: float = 5.0,    #  Y – minimum allowed peak area
+    min_peak_area: float = 5.0,  #  Y – minimum allowed peak area
     min_pk0: int = 3,
     max_pk0: int = 4,
     min_pk1: int = 5,
@@ -179,14 +180,14 @@ def generate_dataset(
         labels.append(lab)
 
     df = pd.DataFrame(np.vstack(rows))
-    df["label"] = labels
+    df['label'] = labels
     return df
 
 
 # ────────────────────────────────────────────────────────────
 #  Script entry‑point
 # ────────────────────────────────────────────────────────────
-if __name__ == "__main__":
+if __name__ == '__main__':
     np.random.seed(42)
     random.seed(42)
     out_dir = Path(__file__).resolve().parent
@@ -197,16 +198,15 @@ if __name__ == "__main__":
 
     save_datasets(train_df=train_df, test_df=test_df, output_folder=out_dir)
 
-    
     # ── visual sanity-check (two boxed panels) ───────────────────────────────
     fig = plt.figure(figsize=(10, 4), dpi=150)
     ax0 = plt.subplot(1, 2, 1)
     ax1 = plt.subplot(1, 2, 2)
 
-    ax0.plot(train_df[train_df["label"] == 0].iloc[0, :-1])
-    ax0.set_title("3–4 peaks (class 0)", pad=6)
-    ax1.plot(train_df[train_df["label"] == 1].iloc[0, :-1])
-    ax1.set_title("5–6 peaks (class 1)", pad=6)
+    ax0.plot(train_df[train_df['label'] == 0].iloc[0, :-1])
+    ax0.set_title('3–4 peaks (class 0)', pad=6)
+    ax1.plot(train_df[train_df['label'] == 1].iloc[0, :-1])
+    ax1.set_title('5–6 peaks (class 1)', pad=6)
 
     for ax in (ax0, ax1):
         ax.set_xticks([])
@@ -215,12 +215,12 @@ if __name__ == "__main__":
         for spine in ax.spines.values():
             spine.set_visible(True)
             spine.set_linewidth(1)
-            spine.set_edgecolor("black")
+            spine.set_edgecolor('black')
 
     plt.tight_layout()
-    figs_dir = Path("67ff59b20231d9f95909f426/figs/datasets")
-    fig.savefig(figs_dir / "find_peaks.png")
-    fig.savefig(figs_dir / "find_peaks.pdf")
-    print("✓ CSVs + boxed figure written to", figs_dir)
-
-
+    figs_dir = Path(
+        os.environ.get('FIGS_DIR', '67ff59b20231d9f95909f426/figs/datasets')
+    )
+    fig.savefig(figs_dir / 'find_peaks.png')
+    fig.savefig(figs_dir / 'find_peaks.pdf')
+    print('✓ CSVs + boxed figure written to', figs_dir)

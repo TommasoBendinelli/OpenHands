@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -27,6 +28,11 @@ def main() -> None:
     tasks = []
     time_series_task = []
     tabular_task = []
+    fig_path = Path(
+        os.environ.get('FIGS_DIR', '67ff59b20231d9f95909f426/figs/datasets')
+    )
+    assert fig_path.exists(), f'FIGS_DIR {fig_path} does not exist.'
+
     for task_dir in TASKS_ROOT.glob('*'):
         # Skip anything that is not an actual task directory
         if not task_dir.is_dir() or task_dir.name in SKIP_DIRS:
@@ -43,6 +49,7 @@ def main() -> None:
             result = subprocess.run(
                 [sys.executable, generate_file.name],
                 cwd=task_dir,
+                env={**os.environ, 'FIGS_DIR': fig_path.absolute()},
                 capture_output=True,
                 text=True,
                 check=False,

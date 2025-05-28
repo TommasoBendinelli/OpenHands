@@ -4,26 +4,34 @@ group_outlier_ratio.py  –  anomaly-flavoured group-by task
 label 1 ⟺ at least 8 % of the group’s rows are extreme outliers (|signal|>3)
 """
 
-import random, string, numpy as np, pandas as pd, matplotlib.pyplot as plt
-from pathlib import Path
+import os
+import random
+import string
 import sys
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from utils import save_datasets            # your helper
+from utils import save_datasets  # your helper
 
 # ──────────────────────────────────────────
 N_GROUPS, ROWS_PER_GRP = 100, 50
-THRESH_RATIO           = 0.08              # 8 %
-OUTLIER_CUTOFF         = 3.0               # |signal| threshold
-DISTRACTOR_COLS        = 2                 # extra N(0,1) columns
+THRESH_RATIO = 0.08  # 8 %
+OUTLIER_CUTOFF = 3.0  # |signal| threshold
+DISTRACTOR_COLS = 2  # extra N(0,1) columns
 # ──────────────────────────────────────────
 
 
 def unique_id(used: set) -> str:
     """Return a never-before-seen ID like 'E-42'."""
     while True:
-        gid = f"{random.choice(string.ascii_uppercase[:8])}-{random.randint(0,99):02d}"
+        gid = f'{random.choice(string.ascii_uppercase[:8])}-{random.randint(0, 99):02d}'
         if gid not in used:
-            used.add(gid); return gid
+            used.add(gid)
+            return gid
 
 
 def make_group(label: int, gid: str):
@@ -31,11 +39,11 @@ def make_group(label: int, gid: str):
     Create one group.  label 0 = normal, label 1 = anomalous.
     In anomalous groups ~10–15 % of rows are ±N(6,1) spikes.
     """
-    base   = np.random.normal(0, 1, ROWS_PER_GRP)
+    base = np.random.normal(0, 1, ROWS_PER_GRP)
     if label == 1:
-        k          = np.random.randint(int(.10*ROWS_PER_GRP), int(.15*ROWS_PER_GRP)+1)
-        idx        = np.random.choice(ROWS_PER_GRP, k, replace=False)
-        base[idx]  = np.random.normal(0, 1, k) + np.random.choice([-6, 6], k)
+        k = np.random.randint(int(0.10 * ROWS_PER_GRP), int(0.15 * ROWS_PER_GRP) + 1)
+        idx = np.random.choice(ROWS_PER_GRP, k, replace=False)
+        base[idx] = np.random.normal(0, 1, k) + np.random.choice([-6, 6], k)
     rows = []
     for val in base:
         distr = np.random.normal(0, 1, DISTRACTOR_COLS)
@@ -46,42 +54,48 @@ def make_group(label: int, gid: str):
 def generate_dataset() -> pd.DataFrame:
     rows, used = [], set()
     for g in range(N_GROUPS):
-        gid   = unique_id(used)
-        label = g % 2                 # balanced 0,1
+        gid = unique_id(used)
+        label = g % 2  # balanced 0,1
         rows += make_group(label, gid)
 
-    cols = (["group_id", "signal"] +
-            [f"noise{i+1}" for i in range(DISTRACTOR_COLS)] +
-            ["label"])
+    cols = (
+        ['group_id', 'signal']
+        + [f'noise{i + 1}' for i in range(DISTRACTOR_COLS)]
+        + ['label']
+    )
     return pd.DataFrame(rows, columns=cols)
 
-def combined_outlier_ratio_plot(train_df: pd.DataFrame,
-                                test_df:  pd.DataFrame,
-                                cutoff:   float,
-                                title:    str,
-                                out_png:  Path):
+
+def combined_outlier_ratio_plot(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    cutoff: float,
+    title: str,
+    out_png: Path,
+):
     """
     Compare per-group outlier ratios (|signal| > OUTLIER_CUTOFF) in train/test,
     stacked by the true label and offset left/right exactly like
     `combined_sanity_plot` from the dominant-feature task.
     """
+
     # helper: compute each group’s outlier ratio
     def ratio(df):
         return (
             df.assign(is_out=lambda d: d.signal.abs() > OUTLIER_CUTOFF)
-              .groupby("group_id")["is_out"]
-              .mean()
+            .groupby('group_id')['is_out']
+            .mean()
         )
 
     tr_ratio = ratio(train_df)
     te_ratio = ratio(test_df)
-    tr_lbl   = train_df.groupby("group_id")["label"].first()
-    te_lbl   = test_df .groupby("group_id")["label"].first()
+    tr_lbl = train_df.groupby('group_id')['label'].first()
+    te_lbl = test_df.groupby('group_id')['label'].first()
 
     # common bin edges
-    bins = np.linspace(min(tr_ratio.min(), te_ratio.min()),
-                       max(tr_ratio.max(), te_ratio.max()),
-                       30)
+    bins = np.linspace(
+        min(tr_ratio.min(), te_ratio.min()), max(tr_ratio.max(), te_ratio.max()), 30
+    )
     centers = (bins[:-1] + bins[1:]) / 2
 
     # histogram counts
@@ -94,18 +108,30 @@ def combined_outlier_ratio_plot(train_df: pd.DataFrame,
 
     plt.figure(figsize=(10, 4))
     # train (offset left)
-    plt.bar(centers - 1.5*width, tr0, width=width,
-            alpha=0.6, label="train (label=0)")
-    plt.bar(centers - 1.5*width, tr1, width=width,
-            bottom=tr0, alpha=0.6, hatch="//", label="train (label=1)")
+    plt.bar(centers - 1.5 * width, tr0, width=width, alpha=0.6, label='train (label=0)')
+    plt.bar(
+        centers - 1.5 * width,
+        tr1,
+        width=width,
+        bottom=tr0,
+        alpha=0.6,
+        hatch='//',
+        label='train (label=1)',
+    )
     # test  (offset right)
-    plt.bar(centers + 1.5*width, te0, width=width,
-            alpha=0.6, label="test (label=0)")
-    plt.bar(centers + 1.5*width, te1, width=width,
-            bottom=te0, alpha=0.6, hatch="\\\\", label="test (label=1)")
+    plt.bar(centers + 1.5 * width, te0, width=width, alpha=0.6, label='test (label=0)')
+    plt.bar(
+        centers + 1.5 * width,
+        te1,
+        width=width,
+        bottom=te0,
+        alpha=0.6,
+        hatch='\\\\',
+        label='test (label=1)',
+    )
 
-    plt.xlabel("")
-    plt.ylabel("Count")
+    plt.xlabel('')
+    plt.ylabel('Count')
     plt.title(title)
     plt.legend()
     plt.tight_layout()
@@ -122,22 +148,24 @@ def main():
 
     # sanity plot: distribution of outlier ratios
     def outlier_ratio(df):
-        return df.assign(is_out=lambda d: d.signal.abs() > OUTLIER_CUTOFF) \
-                 .groupby("group_id")["is_out"].mean()
+        return (
+            df.assign(is_out=lambda d: d.signal.abs() > OUTLIER_CUTOFF)
+            .groupby('group_id')['is_out']
+            .mean()
+        )
 
-    r      = outlier_ratio(train)
+    outlier_ratio(train)
 
     plot = combined_outlier_ratio_plot(
-        train,
-        test,
-        THRESH_RATIO,
-        "",
-        out / "outlier_ratio_distribution_combined.png"
+        train, test, THRESH_RATIO, '', out / 'outlier_ratio_distribution_combined.png'
     )
     # (optional) store extra copies with your other figures
-    plot.savefig("67ff59b20231d9f95909f426/figs/datasets/outlier_ratio_combined.png", dpi=150)
-    plot.savefig("67ff59b20231d9f95909f426/figs/datasets/outlier_ratio_combined.pdf", dpi=150)
-    
+    figs_dir = Path(
+        os.environ.get('FIGS_DIR', '67ff59b20231d9f95909f426/figs/datasets')
+    )
+    plot.savefig(figs_dir / 'outlier_ratio_combined.png', dpi=150)
+    plot.savefig(figs_dir / 'outlier_ratio_combined.pdf', dpi=150)
+
     # y_grp  = train.groupby("group_id")["label"].first()
     # plt.hist(r[y_grp==0], bins=30, alpha=.6, label="label 0")
     # plt.hist(r[y_grp==1], bins=30, alpha=.6, label="label 1")
@@ -148,5 +176,5 @@ def main():
     # plt.savefig(out / "outlier_ratio_example.png")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

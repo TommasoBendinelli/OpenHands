@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 import random
 import sys
 from pathlib import Path
@@ -102,7 +103,7 @@ if __name__ == '__main__':
         ax1.set_title(f'{title} – Channel A')
         ax1.legend()
         ax1.set_xticks(range(0, length, 50))
-        
+
         # Channel B right below it
         ax2 = plt.subplot(2, 2, i + 3)
         ax2.plot(train_df.iloc[i, length:-1], label='channel B')
@@ -110,12 +111,13 @@ if __name__ == '__main__':
         ax2.legend()
         ax2.set_xticks(range(0, length, 50))
 
-
     plt.tight_layout()
     plt.show()
     plt.savefig(out_dir / 'corr_dataset_example.png')
 
-    # Also save here: 67ff59b20231d9f95909f426/figs/datasets
-    plt.savefig("67ff59b20231d9f95909f426/figs/datasets/channel_corr_hard.png")
-    plt.savefig("67ff59b20231d9f95909f426/figs/datasets/channel_corr_hard.pdf")
-        
+    # Also save here if a folder is provided via FIGS_DIR
+    figs_dir = Path(
+        os.environ.get('FIGS_DIR', '67ff59b20231d9f95909f426/figs/datasets')
+    )
+    plt.savefig(figs_dir / 'channel_corr_hard.png')
+    plt.savefig(figs_dir / 'channel_corr_hard.pdf')

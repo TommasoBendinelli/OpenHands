@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import math
+import os
 import random
 import sys
 from pathlib import Path
@@ -18,18 +19,19 @@ def _boxed_two_panel_plot(df, path_png, path_pdf, titles):
     ax1 = plt.subplot(1, 2, 2)
 
     # one example per class
-    ax0.plot(df[df["label"] == 1].iloc[0, :-1])     # stationary → label 1
-    ax1.plot(df[df["label"] == 0].iloc[0, :-1])     # RW → label 0
+    ax0.plot(df[df['label'] == 1].iloc[0, :-1])  # stationary → label 1
+    ax1.plot(df[df['label'] == 0].iloc[0, :-1])  # RW → label 0
 
     ax0.set_title(titles[0], pad=6)
     ax1.set_title(titles[1], pad=6)
 
     for ax in (ax0, ax1):
-        ax.set_xticks([]); ax.set_yticks([])
-        for spine in ax.spines.values():            # black frame
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():  # black frame
             spine.set_visible(True)
             spine.set_linewidth(1)
-            spine.set_edgecolor("black")
+            spine.set_edgecolor('black')
 
     plt.tight_layout()
     fig.savefig(path_png)
@@ -37,7 +39,7 @@ def _boxed_two_panel_plot(df, path_png, path_pdf, titles):
     plt.close(fig)
 
     # destination folder (same pattern as the other datasets)
-    figs_dir =  Path("67ff59b20231d9f95909f426/figs/datasets")
+    Path(os.environ.get('FIGS_DIR', '67ff59b20231d9f95909f426/figs/datasets'))
 
 
 def has_variance_burst(x: np.ndarray, window: int = 30, thresh: float = 3.0) -> int:
@@ -93,7 +95,7 @@ def main():
     # Set seed for reproducibility
     np.random.seed(42)
     random.seed(42)
-    output_folder = Path(__file__).resolve().parent
+    Path(__file__).resolve().parent
 
     out_dir = Path(__file__).resolve().parent
     base_std = 0.5
@@ -148,11 +150,10 @@ def main():
     # train split
     _boxed_two_panel_plot(
         train_df,
-        output_dir / "variance_burst_vs_non_burst_train.png",
-        output_dir / "variance_burst_vs_non_burst_train.pdf",
-        titles=("Variance burst (class 1)", "No burst (class 0)"),
+        output_dir / 'variance_burst_vs_non_burst_train.png',
+        output_dir / 'variance_burst_vs_non_burst_train.pdf',
+        titles=('Variance burst (class 1)', 'No burst (class 0)'),
     )
-
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 import random
 import sys
 from pathlib import Path
@@ -66,7 +67,9 @@ if __name__ == '__main__':
 
     length = train_df.shape[1] // 2
     plt.figure(figsize=(10, 4))
-    for i, title in zip([0, 1], ['Same Frequency (class 0)', 'Different Frequency (class 1)']):
+    for i, title in zip(
+        [0, 1], ['Same Frequency (class 0)', 'Different Frequency (class 1)']
+    ):
         # Channel A on top row
         ax1 = plt.subplot(2, 2, i + 1)
         ax1.plot(train_df.iloc[i, :length], label='channel A')
@@ -80,12 +83,14 @@ if __name__ == '__main__':
         ax2.set_title(f'{title} – Channel B')
         ax2.legend()
         ax2.set_xticks(range(0, length, 100))
-    
+
     plt.tight_layout()
 
-    # Also save here: 67ff59b20231d9f95909f426/figs/datasets
-    plt.savefig("67ff59b20231d9f95909f426/figs/datasets/common_frequency.png", dpi=150)
-    plt.savefig("67ff59b20231d9f95909f426/figs/datasets/common_frequency.pdf", dpi=150)
-        
+    # Also save here if FIGS_DIR is provided
+    figs_dir = Path(
+        os.environ.get('FIGS_DIR', '67ff59b20231d9f95909f426/figs/datasets')
+    )
+    plt.savefig(figs_dir / 'common_frequency.png', dpi=150)
+    plt.savefig(figs_dir / 'common_frequency.pdf', dpi=150)
 
-    print("Files written: train.csv, test.csv + PNG sanity plots")
+    print('Files written: train.csv, test.csv + PNG sanity plots')
