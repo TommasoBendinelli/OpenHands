@@ -423,10 +423,9 @@ def process_instance(
             config=config,
             initial_user_action=MessageAction(content=instruction),
             runtime=runtime,
-            fake_user_response_fn=AGENT_CLS_TO_FAKE_USER_RESPONSE_FN.get(
+            fake_user_response_fn=AGENT_RESPONSE_HANDLERS.get(
                 metadata.agent_class
             ),
-            cfg=cfg,
         )
     )
 
