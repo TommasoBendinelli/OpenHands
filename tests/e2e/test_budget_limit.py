@@ -17,14 +17,20 @@ def test_budget_limit_end_to_end(tmp_path):
 
     day = timestamp.split('_')[0]
     steps = 100
-    base_dir = (
+    root_dir = (
         Path('evaluation/evaluation_outputs/outputs')
         / day
         / f'{timestamp}_0'
         / 'channel_corr_hard'
         / 'DataScienceBenchAgent'
-        / f'gemini-2.0-flash-lite_maxiter_{steps}_N_temp'
     )
+
+    # Find the directory inside the base directory
+    base_dir = list(root_dir.iterdir())
+    assert len(base_dir) == 1, (
+        f'Expected exactly one directory in {root_dir}, but found {len(base_dir)}'
+    )
+    base_dir = base_dir[0]
 
     # Delete the output directory if it exists
     if base_dir.exists():
