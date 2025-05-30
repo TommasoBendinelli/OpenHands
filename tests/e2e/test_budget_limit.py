@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -25,21 +26,9 @@ def test_budget_limit_end_to_end(tmp_path):
         / 'DataScienceBenchAgent'
     )
 
-    # Find the directory inside the base directory
-    base_dir = list(root_dir.iterdir())
-    assert len(base_dir) == 1, (
-        f'Expected exactly one directory in {root_dir}, but found {len(base_dir)}'
-    )
-    base_dir = base_dir[0]
-
     # Delete the output directory if it exists
-    if base_dir.exists():
-        for item in base_dir.iterdir():
-            if item.is_file():
-                item.unlink()
-            elif item.is_dir():
-                item.rmdir()
-        base_dir.rmdir()
+    if root_dir.exists():
+        shutil.rmtree(root_dir)
     env = os.environ.copy()
     env['DEBUG'] = '1'
     llm_config = 'gemini-flash-lite'
@@ -72,6 +61,12 @@ def test_budget_limit_end_to_end(tmp_path):
     ]
 
     subprocess.run(cmd, check=True, env=env)
+    # Find the directory inside the base directory
+    base_dir = list(root_dir.iterdir())
+    assert len(base_dir) == 1, (
+        f'Expected exactly one directory in {root_dir}, but found {len(base_dir)}'
+    )
+    base_dir = base_dir[0]
 
     output_file = base_dir / 'output.jsonl'
 
