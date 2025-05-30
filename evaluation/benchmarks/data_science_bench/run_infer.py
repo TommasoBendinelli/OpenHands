@@ -656,6 +656,15 @@ def main(cfg):
     )
 
     # Add the output file to the trajectory visualiser folder
+
+    # Check if the trajectory visualiser folder exists
+    if not Path(cfg.trajectory_visualiser_folder).exists():
+        # Log a warning if the folder does not exist
+        logger.warning(
+            f'Trajectory visualiser folder {cfg.trajectory_visualiser_folder} does not exist. Creating it.'
+        )
+        # Create the trajectory visualiser folder if it does not exist
+        Path(cfg.trajectory_visualiser_folder).mkdir(parents=True, exist_ok=True)
     target_path = Path(cfg.trajectory_visualiser_folder) / 'output.jsonl'
     if not target_path.exists():
         # Create an empty file if it doesn't exist

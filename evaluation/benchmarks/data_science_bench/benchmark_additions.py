@@ -2,9 +2,11 @@ import fcntl
 import json
 import os
 from pathlib import Path
-from openhands.controller.state.state import State
-from openhands.events.action import Action
 from typing import Callable
+
+from openhands.controller.state.state import State
+from openhands.events.action import Action, MessageAction
+
 
 def safe_append(path: Path, text: str):
     # Open in append+ mode so writes always go to end
@@ -20,16 +22,27 @@ def safe_append(path: Path, text: str):
 
 
 def kill_instance(output_file: str):
+    """Terminate the runtime container recorded in the output file.
+    If the output does not contain a ``sid`` field, all containers with the
+    ``openhands-runtime-`` prefix will be killed instead.
+    """
+
+    sid_to_kill = None
     with open(output_file, 'r') as f:
         for line in f:
-            data = json.loads(line)
-            assert 'sid' in data, f"Missing 'sid' in line: {line}"
-            sid_to_kill = 'openhands-runtime-' + data['sid']
-            break
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if 'sid' in data and data['sid']:
+                sid_to_kill = f'openhands-runtime-{data["sid"]}'
+                break
 
-    print('sid to kill: ', sid_to_kill)
-    print(f"docker ps -q --filter 'name={sid_to_kill}'")
-    os.system(f"docker ps -q --filter 'name={sid_to_kill}' | xargs -r docker kill")
+    if sid_to_kill:
+        print('sid to kill: ', sid_to_kill)
+        os.system(f"docker ps -q --filter 'name={sid_to_kill}' | xargs -r docker kill")
+    else:
+        raise ValueError('SID not found')
 
 
 def errorbench_user_response(
@@ -37,21 +50,19 @@ def errorbench_user_response(
     encapsulate_solution: bool = False,
     try_parse: Callable[[Action], str] | None = None,
 ) -> str:
-    encaps_str = (
-        (
-            'Please encapsulate your final answer (answer ONLY) within <solution> and </solution>.\n'
-            'For example: The answer to the question is <solution> The index 42 value is clearly an outlier </solution>.\n'
-        )
-        if encapsulate_solution
-        else ''
-    )
-    msg = (
-        'Please continue working on the task and submit a new solution to the user via compute_metrics.py. Your result is not good enough yet.\n'
-    )
+    msg = 'Please continue working on the task and submit a new solution to the user via compute_metrics.py. Your result is not good enough yet.\n'
     if state.history:
         from openhands.events.observation import CmdOutputObservation
-        import re
-        msg_content = [x.content for x in state.history if (isinstance(x, CmdOutputObservation) and "Congratulations! You have reached the accuracy threshold of 1.0." in x.content )]
+
+        msg_content = [
+            x.content
+            for x in state.history
+            if (
+                isinstance(x, CmdOutputObservation)
+                and 'Congratulations! You have reached the accuracy threshold of 1.0.'
+                in x.content
+            )
+        ]
         if len(msg_content) > 0:
             return '/exit'
 
@@ -70,7 +81,7 @@ def errorbench_user_response(
                 return '/exit'
 
         # check if the agent has tried to talk to the user 3 times, if so, let the agent know it can give up
-        user_msgs = [
+        [
             event
             for event in state.history
             if isinstance(event, MessageAction) and event.source == 'user'
@@ -82,4 +93,3 @@ def errorbench_user_response(
         #         + 'If you want to give up, use the "finish" tool to finish the interaction.\n'
         #     )
     return msg
-

@@ -76,6 +76,9 @@ class EvalOutput(BaseModel):
     # Optionally save the input test instance
     instance: dict[str, Any] | None = None
 
+    # Runtime session id for cleanup
+    sid: str | None = None
+
 
 class EvalException(Exception):
     pass
