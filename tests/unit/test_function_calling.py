@@ -7,6 +7,9 @@ import pytest
 from litellm import ModelResponse
 
 from openhands.agenthub.codeact_agent.function_calling import response_to_actions
+from openhands.agenthub.data_science_agent.function_calling import (
+    response_to_actions as ds_response_to_actions,
+)
 from openhands.core.exceptions import FunctionCallValidationError
 from openhands.events.action import (
     BrowseInteractiveAction,
@@ -242,3 +245,24 @@ def test_unexpected_argument_handling():
     # Verify the error message mentions the unexpected argument
     assert 'old_str_prefix' in str(exc_info.value)
     assert 'Unexpected argument' in str(exc_info.value)
+
+
+def test_ipython_cell_read_csv_banned_injects_assert():
+    """Ensure pd.read_csv usage is blocked when is_read_csv_banned is True."""
+
+    response = create_mock_response(
+        'execute_ipython_cell',
+        {'code': "import pandas as pd\npd.read_csv('data.csv')"},
+    )
+
+    class DummyCfg:
+        is_sklearn_banned = False
+        is_read_csv_banned = True
+
+    actions = ds_response_to_actions(response, DummyCfg())
+    assert len(actions) == 1
+    assert isinstance(actions[0], IPythonRunCellAction)
+    assert (
+        actions[0].code
+        == "raise Exception('you are not allowed to use pd.read_csv!')\n"
+    )

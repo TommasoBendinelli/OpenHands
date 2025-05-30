@@ -673,7 +673,7 @@ def get_parser() -> argparse.ArgumentParser:
         '-b',
         '--max-budget-per-task',
         type=float,
-        help='The maximum budget allowed per task, beyond which the agent will stop.',
+        help='Maximum cumulative budget per task in USD (0 disables the limit).',
     )
     # --eval configs are for evaluations only
     parser.add_argument(
