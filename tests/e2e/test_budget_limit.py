@@ -39,7 +39,10 @@ def test_budget_limit_end_to_end(llm_config):
         shutil.rmtree(root_dir)
     env = os.environ.copy()
     env['DEBUG'] = '1'
-    max_budget_per_task = 0.001
+    if llm_config == 'open_router_claude':
+        max_budget_per_task = 0.01
+    else:
+        max_budget_per_task = 0.001
     cmd = [
         'python',
         '-m',
@@ -66,7 +69,7 @@ def test_budget_limit_end_to_end(llm_config):
         'identifier_experiment=baseline',
         f'timestamp={timestamp}',
     ]
-
+    print(f'Running command: {" ".join(cmd)}')
     subprocess.run(cmd, check=True, env=env)
     # Find the directory inside the base directory
     base_dir = list(root_dir.iterdir())
