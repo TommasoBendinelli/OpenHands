@@ -195,7 +195,7 @@ def initialize_runtime(
         runtime.run(
             CmdRunAction(
                 command=(
-                    f"sed -i 's|RUN_COUNTER_LIMIT = 10\\*\\*12|RUN_COUNTER_LIMIT = {cfg.solution_iterations}|' "
+                    f"sed -i 's|RUN_COUNTER_LIMIT = 10\\*\\*12|RUN_COUNTER_LIMIT = {cfg.feedback_iterations}|' "
                     '/mnt/compute_metric.py'
                 )
             )
@@ -377,9 +377,9 @@ def process_instance(
         instruction += 'You must follow the following template. First explore the dataset without extentively to gain knowledge about it. Then come up with a series of hypothesis in natural language and then test them one by one with code. List your hypothesis in a bullet point list of 10 items. \n'
         instruction += 'Then, for each hypothesis, write a code that tests it. \n'
 
-    if cfg.solution_iterations > 0:
-        if cfg.show_solution_iterations:
-            instruction += f'To submit your hand-crafted summary feature you need to call python3 /mnt/compute_metric.py. If your solution is not good enough, you will get back a score. You can then improve your solution and submit it again. You have up to {cfg.solution_iterations} attempts to improve your solution. If your solution is good enough the task will be considered completed.\n'
+    if cfg.feedback_iterations > 0:
+        if cfg.show_feedback_iterations:
+            instruction += f'To submit your hand-crafted summary feature you need to call python3 /mnt/compute_metric.py. If your solution is not good enough, you will get back a score. You can then improve your solution and submit it again. You have up to {cfg.feedback_iterations} attempts to improve your solution. If your solution is good enough the task will be considered completed.\n'
         else:
             instruction += 'To submit your hand-crafted summary feature you need to call python3 /mnt/compute_metric.py.  If your solution is not good enough, you will get back a score. You can then improve your solution and submit it again. If your solution is good enough the episode will end. You have only a limited number of attempts to improve your solution.\n'
     else:
@@ -396,7 +396,7 @@ def process_instance(
 
     if cfg.keep_going_until_succeed:
         instruction += 'Keep trying to improve your solution. Do not stop. \n'
-    if cfg.show_solution_iterations:
+    if cfg.show_feedback_iterations:
         instruction += f'You have up to {cfg.max_iterations} max interaction with the data to solve the task. \n'
 
     if cfg.warm_against_cheating:
@@ -489,7 +489,7 @@ def process_instance(
             tmp = np.nan
         number_of_submission = tmp
         scores = []
-        if cfg.solution_iterations > 0:
+        if cfg.feedback_iterations > 0:
             is_violated = np.nan
             res = runtime.run_action(CmdRunAction(command='cat /mnt/accuracy.txt'))
             scores = [
@@ -498,12 +498,12 @@ def process_instance(
                 if line.startswith('Accuracy')
             ]
 
-        if cfg.solution_iterations == 0 or not scores:
+        if cfg.feedback_iterations == 0 or not scores:
             is_violated = np.nan
             runtime.run(
                 CmdRunAction(
                     command=(
-                        f"sed -i 's|RUN_COUNTER_LIMIT = {cfg.solution_iterations}|RUN_COUNTER_LIMIT = {cfg.solution_iterations + 10}|' "
+                        f"sed -i 's|RUN_COUNTER_LIMIT = {cfg.feedback_iterations}|RUN_COUNTER_LIMIT = {cfg.feedback_iterations + 10}|' "
                         '/mnt/compute_metric.py'
                     )
                 )

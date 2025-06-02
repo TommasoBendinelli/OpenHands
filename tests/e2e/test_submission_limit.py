@@ -24,7 +24,7 @@ def test_submission_limit_end_to_end(llm_config):
     timestamp = '1970-01-01_00-00-00'
 
     day = timestamp.split('_')[0]
-    solution_iterations = 1
+    feedback_iterations = 1
     root_dir = (
         Path('evaluation/evaluation_outputs/outputs')
         / day
@@ -47,7 +47,7 @@ def test_submission_limit_end_to_end(llm_config):
         'instance=channel_corr_hard',
         'constraints=0',
         f'llm_config={llm_config}',
-        f'solution_iterations={solution_iterations}',
+        f'feedback_iterations={feedback_iterations}',
         'cheating_attempt=False',
         'warm_against_cheating=False',
         'max_budget_per_task=1',
@@ -70,4 +70,4 @@ def test_submission_limit_end_to_end(llm_config):
         data = json.loads(f.readline())
 
     submissions = data['test_result']['result']['number_of_submissions']
-    assert submissions <= solution_iterations
+    assert submissions <= feedback_iterations

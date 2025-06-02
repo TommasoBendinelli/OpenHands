@@ -48,7 +48,7 @@ def test_iteration_limit_end_to_end(llm_config):
         'instance=channel_corr_hard',
         'constraints=0',
         f'llm_config={llm_config}',
-        'solution_iterations=5',
+        'feedback_iterations=5',
         'cheating_attempt=False',
         'warm_against_cheating=False',
         'max_budget_per_task=1',

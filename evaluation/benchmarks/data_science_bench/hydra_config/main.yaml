@@ -10,7 +10,7 @@ instance: "wine"
 constraints: 0
 hints: 0
 trajectory_visualiser_folder: 'trajectory-visualizer/public'
-solution_iterations: 0
+feedback_iterations: 0
 template_text: False
 enable_browsing_for_pictures: False
 cheating_attempt: False
@@ -18,7 +18,7 @@ warm_against_cheating: False
 max_budget_per_task: 0
 prompt_variation: 0
 seed: 0
-show_solution_iterations: True
+show_feedback_iterations: True
 show_max_budget_per_task: False
 keep_going_until_succeed: False
 include_constraints: False
