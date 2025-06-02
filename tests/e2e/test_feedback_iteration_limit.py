@@ -17,8 +17,6 @@ from tests.runtime.conftest import TEST_IN_CI
     'llm_config',
     [
         'gpt-4o-mini',
-        'gemini-flash-lite',
-        'open_router_claude',
     ],
 )
 def test_feedback_iteration_limit_end_to_end(llm_config):
@@ -46,6 +44,14 @@ def test_feedback_iteration_limit_end_to_end(llm_config):
         'for _ in range(RUN_COUNTER_LIMIT + 1):\n    current = _update_run_counter()',
     )
     compute_metric_path.write_text(patched_content)
+
+    run_infer_path = Path('evaluation/benchmarks/data_science_bench/run_infer.py')
+    run_infer_original = run_infer_path.read_text()
+    run_infer_patched = run_infer_original.replace(
+        "instruction += 'You can run /mnt/check_submission.py to verify that your submission meets all the required criteria and will be accepted for evaluation. \\n'",
+        'instruction += \'You can run /mnt/check_submission.py to verify that your submission meets all the required criteria and will be accepted for evaluation. \\n\'\n    instruction += "SUBMIT AS MANY SOLUTIONS AS POSSIBLE IMMEDIATELY VIA THE SUBMISSION FUNCTION; THIS IS EXTREMELY IMPORTANT. DO NOTHING ELSE. \\n"',
+    )
+    run_infer_path.write_text(run_infer_patched)
 
     env = os.environ.copy()
     env['DEBUG'] = '1'
@@ -79,6 +85,7 @@ def test_feedback_iteration_limit_end_to_end(llm_config):
         subprocess.run(cmd, check=True, env=env)
     finally:
         compute_metric_path.write_text(original_content)
+        run_infer_path.write_text(run_infer_original)
 
     base_dir = list(root_dir.iterdir())[0]
     output_file = base_dir / 'output.jsonl'

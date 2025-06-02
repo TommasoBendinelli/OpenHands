@@ -30,7 +30,9 @@ from openhands.events.action import (
     AgentFinishAction,
     MessageAction,
 )
+from openhands.events.action.agent import AgentFinishTaskCompleted
 from openhands.events.event import Event
+from openhands.events.observation.commands import CmdOutputObservation
 from openhands.llm.llm import LLM
 from openhands.memory.condenser import Condenser
 from openhands.memory.condenser.condenser import Condensation, View
@@ -143,6 +145,25 @@ class DataScienceBenchAgent(Agent):
         super().reset()
         self.pending_actions.clear()
 
+    def _feedback_limit_reached(self, state: State) -> bool:
+        """Check if the feedback iteration limit has been reached."""
+        if not (self.cfg and getattr(self.cfg, 'feedback_iterations', 0) > 0):
+            return False
+
+        if not state.history:
+            return False
+
+        last_event = state.history[-1]
+        if (
+            isinstance(last_event, CmdOutputObservation)
+            and last_event.exit_code != 0
+            and 'limit' in last_event.content
+            and 'submit your best solution' in last_event.content
+        ):
+            return True
+
+        return False
+
     def step(self, state: State) -> Action:
         """Performs one step using the CodeAct Agent.
 
@@ -161,6 +182,12 @@ class DataScienceBenchAgent(Agent):
         # Continue with pending actions if any
         if self.pending_actions:
             return self.pending_actions.popleft()
+
+        if self._feedback_limit_reached(state):
+            return AgentFinishAction(
+                final_thought='Feedback iteration limit reached.',
+                task_completed=AgentFinishTaskCompleted.PARTIAL,
+            )
 
         # if we're done, go back
         latest_user_message = state.get_last_user_message()
