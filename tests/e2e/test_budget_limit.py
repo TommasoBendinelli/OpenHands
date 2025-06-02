@@ -13,7 +13,15 @@ from tests.runtime.conftest import TEST_IN_CI
     not TEST_IN_CI,
     reason='This test requires network access and Docker to run.',
 )
-def test_budget_limit_end_to_end(tmp_path):
+@pytest.mark.parametrize(
+    'llm_config',
+    [
+        'gpt-4o-mini',
+        'gemini-flash-lite',
+        'open_router_claude',
+    ],
+)
+def test_budget_limit_end_to_end(llm_config):
     timestamp = '1970-01-01_00-00-00'
 
     day = timestamp.split('_')[0]
@@ -31,7 +39,6 @@ def test_budget_limit_end_to_end(tmp_path):
         shutil.rmtree(root_dir)
     env = os.environ.copy()
     env['DEBUG'] = '1'
-    llm_config = 'gemini-flash-lite'
     max_budget_per_task = 0.001
     cmd = [
         'python',
