@@ -195,7 +195,7 @@ def initialize_runtime(
         runtime.run(
             CmdRunAction(
                 command=(
-                    f"sed -i 's|RUN_COUNTER_LIMIT = 10\\*\\*12|RUN_COUNTER_LIMIT = {cfg.feedback_iterations}|' "
+                    f"sed -i 's|RUN_COUNTER_LIMIT = .*|RUN_COUNTER_LIMIT = {cfg.feedback_iterations}|' "
                     '/mnt/compute_metric.py'
                 )
             )
