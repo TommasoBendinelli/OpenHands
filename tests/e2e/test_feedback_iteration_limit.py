@@ -16,7 +16,7 @@ from tests.runtime.conftest import TEST_IN_CI
 @pytest.mark.parametrize(
     'llm_config',
     [
-        'gpt-4o-mini',
+        'gpt-4o',
     ],
 )
 def test_feedback_iteration_limit_end_to_end(llm_config):

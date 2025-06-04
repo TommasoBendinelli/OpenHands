@@ -100,6 +100,8 @@ MODELS_WITHOUT_STOP_WORDS = [
     'o1-preview',
     'o1',
     'o1-2024-12-17',
+    'o4-mini',
+    'o4-mini-2025-04-16',
 ]
 
 

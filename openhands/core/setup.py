@@ -177,9 +177,19 @@ def create_agent(config: AppConfig) -> Agent:
     agent_config = config.get_agent_config(config.default_agent)
     llm_config = config.get_llm_config_from_agent(config.default_agent)
 
+    extra_kwargs = {}
+    try:
+        import inspect
+
+        if 'cfg' in inspect.signature(agent_cls.__init__).parameters:
+            extra_kwargs['cfg'] = getattr(config.extended, 'cfg', None)
+    except Exception:
+        pass
+
     agent = agent_cls(
         llm=LLM(config=llm_config),
         config=agent_config,
+        **extra_kwargs,
     )
 
     return agent
