@@ -9,7 +9,7 @@ class_type: "data_inputation"
 instance: "wine"
 constraints: 0
 hints: 0
-trajectory_visualiser_folder: 'trajectory-visualizer/public'
+trajectory_visualiser_folder: '/home/tommaso/home_tommaso/repos/OpenHands/trajectory-visualizer/public'
 feedback_iterations: 0
 template_text: False
 enable_browsing_for_pictures: False

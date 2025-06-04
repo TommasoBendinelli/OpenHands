@@ -2,7 +2,6 @@ import copy
 import os
 from collections import deque
 from functools import partial
-from pathlib import Path
 
 import pandas as pd
 from litellm import ChatCompletionToolParam
@@ -125,19 +124,8 @@ class DataScienceBenchAgent(Agent):
             self.cfg and self.cfg.keep_going_until_succeed
         ):
             tools.append(FinishTool)
-        # if self.config.enable_browsing:
-        #     tools.append(WebReadTool)
-        #     tools.append(BrowserTool)
         if self.config.enable_jupyter:
             tools.append(IPythonTool)
-        # if self.config.enable_llm_editor:
-        #     tools.append(LLMBasedFileEditTool)
-        # if self.config.enable_editor:
-        #     tools.append(
-        #         create_str_replace_editor_tool(
-        #             use_short_description=use_short_tool_desc
-        #         )
-        #     )
         return tools
 
     def reset(self) -> None:
@@ -324,124 +312,124 @@ class DataScienceBenchAgent(Agent):
                         break
 
         # Find each message with "already displayed to user" and remove it
-        if self.cfg and self.cfg.is_plotting_enabled:
+        # if self.cfg and self.cfg.is_plotting_enabled:
 
-            def save_png(pngs: list[str]) -> None:
-                # Save all the images in a list inside the evaluation folder
-                assert self.cfg is not None, (
-                    'Config must be provided for saving images.'
-                )
-                images = Path(self.cfg.eval_output_dir) / 'images'
-                images.mkdir(parents=True, exist_ok=True)
-                # Save the images in the folder
-                for i, b64 in enumerate(pngs):
-                    import base64
-                    import pathlib
+        #     def save_png(pngs: list[str]) -> None:
+        #         # Save all the images in a list inside the evaluation folder
+        #         assert self.cfg is not None, (
+        #             'Config must be provided for saving images.'
+        #         )
+        #         images = Path(self.cfg.eval_output_dir) / 'images'
+        #         images.mkdir(parents=True, exist_ok=True)
+        #         # Save the images in the folder
+        #         for i, b64 in enumerate(pngs):
+        #             import base64
+        #             import pathlib
 
-                    # Convert the base64 string to bytes
-                    img_bytes = base64.b64decode(b64)
-                    pathlib.Path(images / f'{i}.png').write_bytes(img_bytes)
+        #             # Convert the base64 string to bytes
+        #             img_bytes = base64.b64decode(b64)
+        #             pathlib.Path(images / f'{i}.png').write_bytes(img_bytes)
 
-            save_png(pngs)
-            png_iter = iter(pngs)
-            for idx, message in enumerate(params['messages']):
-                rebuilt = []
-                # rebuild this message’s content
-                if (
-                    isinstance(message['content'], list)
-                    and self.cfg
-                    and (
-                        'gemini' in self.cfg.llm_config
-                        or 'gpt' in self.cfg.llm_config
-                        or 'llama' in self.cfg.llm_config
-                    )
-                ):
-                    for part in message['content']:
-                        if (
-                            part.get('type') == 'text'
-                            and 'already displayed to user' in part['text']
-                        ):
-                            stripped = (
-                                part['text']
-                                .replace('already displayed to user', '')
-                                .strip()
-                            )
-                            if stripped:
-                                rebuilt.append({'type': 'text', 'text': stripped})
-                            try:
-                                img_b64 = next(png_iter)
-                            except StopIteration as e:
-                                raise ValueError(
-                                    'Not enough images in `pngs` for every placeholder.'
-                                ) from e
+        #     save_png(pngs)
+        #     png_iter = iter(pngs)
+        #     for idx, message in enumerate(params['messages']):
+        #         rebuilt = []
+        #         # rebuild this message’s content
+        #         if (
+        #             isinstance(message['content'], list)
+        #             and self.cfg
+        #             and (
+        #                 'gemini' in self.cfg.llm_config
+        #                 or 'gpt' in self.cfg.llm_config
+        #                 or 'llama' in self.cfg.llm_config
+        #             )
+        #         ):
+        #             for part in message['content']:
+        #                 if (
+        #                     part.get('type') == 'text'
+        #                     and 'already displayed to user' in part['text']
+        #                 ):
+        #                     stripped = (
+        #                         part['text']
+        #                         .replace('already displayed to user', '')
+        #                         .strip()
+        #                     )
+        #                     if stripped:
+        #                         rebuilt.append({'type': 'text', 'text': stripped})
+        #                     try:
+        #                         img_b64 = next(png_iter)
+        #                     except StopIteration as e:
+        #                         raise ValueError(
+        #                             'Not enough images in `pngs` for every placeholder.'
+        #                         ) from e
 
-                            rebuilt.append(
-                                {
-                                    'type': 'image_url',
-                                    'image_url': {
-                                        'url': f'data:image/png;base64,{img_b64}',
-                                        'format': 'image/png',
-                                    },
-                                }
-                            )
-                        else:
-                            rebuilt.append(part)  # unchanged part
-                    message['content'] = rebuilt
+        #                     rebuilt.append(
+        #                         {
+        #                             'type': 'image_url',
+        #                             'image_url': {
+        #                                 'url': f'data:image/png;base64,{img_b64}',
+        #                                 'format': 'image/png',
+        #                             },
+        #                         }
+        #                     )
+        #                 else:
+        #                     rebuilt.append(part)  # unchanged part
+        #             message['content'] = rebuilt
 
-                elif (
-                    isinstance(message, dict)
-                    and self.cfg
-                    and (
-                        'claude' in self.cfg.llm_config
-                        or 'gpt' in self.cfg.llm_config
-                        or 'llama' in self.cfg.llm_config
-                    )
-                ):
-                    if (
-                        'content' in message
-                        and 'already displayed to user' in message['content']
-                    ):
-                        # Check how many times "already displayed to user" appears
-                        cnt = message['content'].count('already displayed to user')
-                        stripped = (
-                            message['content']
-                            .replace('already displayed to user', '')
-                            .strip()
-                        )
-                        if stripped:
-                            rebuilt.append({'type': 'text', 'text': stripped})
+        #         elif (
+        #             isinstance(message, dict)
+        #             and self.cfg
+        #             and (
+        #                 'claude' in self.cfg.llm_config
+        #                 or 'gpt' in self.cfg.llm_config
+        #                 or 'llama' in self.cfg.llm_config
+        #             )
+        #         ):
+        #             if (
+        #                 'content' in message
+        #                 and 'already displayed to user' in message['content']
+        #             ):
+        #                 # Check how many times "already displayed to user" appears
+        #                 cnt = message['content'].count('already displayed to user')
+        #                 stripped = (
+        #                     message['content']
+        #                     .replace('already displayed to user', '')
+        #                     .strip()
+        #                 )
+        #                 if stripped:
+        #                     rebuilt.append({'type': 'text', 'text': stripped})
 
-                        for _ in range(cnt):
-                            try:
-                                img_b64 = next(png_iter)
-                            except StopIteration as e:
-                                raise ValueError(
-                                    'Not enough images in `pngs` for every placeholder.'
-                                ) from e
-                            # rebuilt.append({"type": "text", "text": f"Image {i}"})
-                            rebuilt.append(
-                                {
-                                    'type': 'image_url',
-                                    'image_url': {
-                                        'url': f'data:image/png;base64,{img_b64}',
-                                        'format': 'image/png',
-                                    },
-                                }
-                            )
+        #                 for _ in range(cnt):
+        #                     try:
+        #                         img_b64 = next(png_iter)
+        #                     except StopIteration as e:
+        #                         raise ValueError(
+        #                             'Not enough images in `pngs` for every placeholder.'
+        #                         ) from e
+        #                     # rebuilt.append({"type": "text", "text": f"Image {i}"})
+        #                     rebuilt.append(
+        #                         {
+        #                             'type': 'image_url',
+        #                             'image_url': {
+        #                                 'url': f'data:image/png;base64,{img_b64}',
+        #                                 'format': 'image/png',
+        #                             },
+        #                         }
+        #                     )
 
-                        params['messages'][idx] = {
-                            'content': rebuilt,
-                            'role': message['role'],
-                        }  # put rebuilt list back
-                        # ← put rebuilt list back
-                else:
-                    raise ValueError('Unsupported LLM config')
-            # clone *after* the edits so the two dicts differ only by this change
-            new_msx = copy.deepcopy(params)
-        else:
-            new_msx = params
+        #                 params['messages'][idx] = {
+        #                     'content': rebuilt,
+        #                     'role': message['role'],
+        #                 }  # put rebuilt list back
+        #                 # ← put rebuilt list back
+        #         else:
+        #             raise ValueError('Unsupported LLM config')
+        #     # clone *after* the edits so the two dicts differ only by this change
+        #     new_msx = copy.deepcopy(params)
+        # else:
+        #     new_msx = params
 
-        response = self.llm.completion(**new_msx)
+        response = self.llm.completion(**params)
 
         logger.debug(f'Response from LLM: {response}')
         actions = self.response_to_actions_fn(response)

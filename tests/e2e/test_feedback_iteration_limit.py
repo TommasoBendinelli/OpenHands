@@ -72,7 +72,7 @@ def test_feedback_iteration_limit_end_to_end(llm_config):
         'prompt_variation=0',
         'seed=20',
         'keep_going_until_succeed=True',
-        'native_tool_calling=False',
+        'native_tool_calling=True',
         'is_plotting_enabled=True',
         'give_structure_hint=False',
         'disable_numbers=False',
@@ -81,6 +81,8 @@ def test_feedback_iteration_limit_end_to_end(llm_config):
         'identifier_experiment=baseline',
         f'timestamp={timestamp}',
     ]
+
+    print(f'Running command: {" ".join(cmd)}')
     try:
         subprocess.run(cmd, check=True, env=env)
     finally:
