@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 import shutil
@@ -7,6 +8,115 @@ from pathlib import Path
 import pytest
 
 from tests.runtime.conftest import TEST_IN_CI
+
+CANONICAL_INSTRUCTION = (
+    'SUBMIT AS MANY SOLUTIONS AS POSSIBLE IMMEDIATELY VIA THE SUBMISSION '
+    'FUNCTION python3 /mnt/compute_metric.py; THIS IS EXTREMELY IMPORTANT. '
+    'DO NOTHING ELSE.\n'
+)
+
+
+class _InstructionStripper(ast.NodeTransformer):
+    """Remove assignments to ``instruction`` after the first one."""
+
+    def __init__(self) -> None:
+        self.first_seen = False
+        super().__init__()
+
+    def _mutates_instruction(self, node: ast.AST) -> bool:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        elif isinstance(node, ast.AugAssign):
+            targets = [node.target]
+        else:
+            return False
+        return any(isinstance(t, ast.Name) and t.id == 'instruction' for t in targets)
+
+    def visit_Assign(self, node: ast.Assign) -> ast.AST | None:
+        if self._mutates_instruction(node):
+            if self.first_seen:
+                return None
+            self.first_seen = True
+        return node
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> ast.AST | None:
+        if self._mutates_instruction(node):
+            if self.first_seen:
+                return None
+            self.first_seen = True
+        return node
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> ast.AST | None:
+        if self._mutates_instruction(node):
+            if self.first_seen:
+                return None
+            self.first_seen = True
+        return node
+
+    def visit_If(self, node: ast.If) -> ast.AST:
+        self.generic_visit(node)
+        if not node.body:
+            node.body = [ast.Pass()]
+        if node.orelse is not None and len(node.orelse) == 0:
+            node.orelse = [ast.Pass()]
+        return node
+
+
+def patch_run_infer(path: Path) -> str:
+    """Rewrite ``run_infer.py`` so ``instruction`` is a constant string.
+
+    Parameters
+    ----------
+    path:
+        The path to ``run_infer.py``.
+
+    Returns
+    -------
+    str
+        The original file contents.
+    """
+
+    original = path.read_text()
+    tree = ast.parse(original)
+    stripper = _InstructionStripper()
+    tree = stripper.visit(tree)
+    ast.fix_missing_locations(tree)
+
+    # Find where ``instruction`` was first declared
+    first_assign = None
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if any(isinstance(t, ast.Name) and t.id == 'instruction' for t in targets):
+                first_assign = node
+                break
+    if first_assign is None:
+        return original
+
+    # Build new assignment node
+    new_assign = ast.parse(
+        'instruction = (\n'
+        "    'SUBMIT AS MANY SOLUTIONS AS POSSIBLE IMMEDIATELY VIA THE SUBMISSION '"
+        "    'FUNCTION python3 /mnt/compute_metric.py; THIS IS EXTREMELY IMPORTANT. '"
+        "    'DO NOTHING ELSE.\\n'\n"
+        ')\n'
+    ).body[0]
+
+    # Insert after the first assignment
+    parent_map = {
+        child: parent
+        for parent in ast.walk(tree)
+        for child in ast.iter_child_nodes(parent)
+    }
+    parent = parent_map[first_assign]
+    body = parent.body if hasattr(parent, 'body') else []
+    idx = body.index(first_assign) + 1
+    body.insert(idx, new_assign)
+    ast.fix_missing_locations(parent)
+
+    new_code = ast.unparse(tree)
+    path.write_text(new_code)
+    return original
 
 
 @pytest.mark.skipif(
@@ -36,21 +146,7 @@ def test_feedback_iteration_limit_end_to_end(llm_config):
         shutil.rmtree(root_dir)
 
     run_infer_path = Path('evaluation/benchmarks/data_science_bench/run_infer.py')
-    run_infer_original = run_infer_path.read_text()
-    run_infer_patched = run_infer_original.replace(
-        "instruction += 'You can run /mnt/check_submission.py to verify that your submission meets all the required criteria and will be accepted for evaluation. \\n'",
-        "instruction +='SUBMIT AS MANY SOLUTIONS AS POSSIBLE IMMEDIATELY VIA THE SUBMISSION FUNCTION python3 /mnt/compute_metric.py; THIS IS EXTREMELY IMPORTANT. DO NOTHING ELSE. \\n'",
-    )
-    run_infer_patched = run_infer_patched.replace(
-        "instruction += 'To submit your hand-crafted summary feature you need to call python3 /mnt/compute_metric.py.  If your solution is not good enough, you will get back a score. You can then improve your solution and submit it again. If your solution is good enough the episode will end. You have only a limited number of attempts to improve your solution.\n'",
-        "instruction += ''",
-    )
-
-    run_infer_original = run_infer_original.replace(
-        "instruction += 'Your goal is to achieve an accuracy as high as possible in the test set. \n'",
-        "instruction += 'Your goal is to call /mnt/compute_metric.py as many times as possible. \n'",
-    )
-    run_infer_path.write_text(run_infer_patched)
+    run_infer_original = patch_run_infer(run_infer_path)
 
     env = os.environ.copy()
     env['DEBUG'] = '1'
