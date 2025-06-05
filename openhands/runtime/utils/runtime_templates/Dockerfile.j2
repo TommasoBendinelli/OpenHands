@@ -2,7 +2,6 @@ FROM {{ base_image }}
 
 # Shared environment variables
 ENV POETRY_VIRTUALENVS_PATH=/openhands/poetry \
-    MAMBA_ROOT_PREFIX=/openhands/micromamba \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     EDITOR=code \
@@ -105,30 +104,29 @@ RUN rm -rf ${OPENVSCODE_SERVER_ROOT}/extensions/{handlebars,pug,json,diff,grunt,
 # Install all dependencies
 WORKDIR /openhands/code
 
-# Configure micromamba and poetry
-RUN /openhands/micromamba/bin/micromamba config set changeps1 False && \
-    /openhands/micromamba/bin/micromamba run -n openhands poetry config virtualenvs.path /openhands/poetry && \
-    /openhands/micromamba/bin/micromamba run -n openhands poetry env use python3.12
+# Configure poetry
+RUN poetry config virtualenvs.path /openhands/poetry && \
+    poetry env use python3.12
 
 # Install project dependencies in smaller chunks
-RUN /openhands/micromamba/bin/micromamba run -n openhands poetry install --only main --no-interaction --no-root
+RUN poetry install --only main --no-interaction --no-root
 
-RUN /openhands/micromamba/bin/micromamba run -n openhands poetry install --only runtime --no-interaction --no-root
+RUN poetry install --only runtime --no-interaction --no-root
 
 # Install playwright and its dependencies
 RUN apt-get update && \
-    /openhands/micromamba/bin/micromamba run -n openhands poetry run pip install playwright && \
-    /openhands/micromamba/bin/micromamba run -n openhands poetry run playwright install --with-deps chromium
+    poetry run pip install playwright && \
+    poetry run playwright install --with-deps chromium
 
 # Set environment variables and permissions
-RUN /openhands/micromamba/bin/micromamba run -n openhands poetry run python -c "import sys; print('OH_INTERPRETER_PATH=' + sys.executable)" >> /etc/environment && \
+RUN poetry run python -c "import sys; print('OH_INTERPRETER_PATH=' + sys.executable)" >> /etc/environment && \
     chmod -R g+rws /openhands/poetry && \
     mkdir -p /openhands/workspace && chmod -R g+rws,o+rw /openhands/workspace
 
 # Clear caches
-RUN /openhands/micromamba/bin/micromamba run -n openhands poetry cache clear --all . -n && \
+RUN poetry cache clear --all . -n && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    /openhands/micromamba/bin/micromamba clean --all
+    rm -rf ~/.cache/pip
 
 {% endmacro %}
 
@@ -141,15 +139,9 @@ RUN /openhands/micromamba/bin/micromamba run -n openhands poetry cache clear --a
 
 {{ setup_base_system() }}
 
-# Install micromamba
-RUN mkdir -p /openhands/micromamba/bin && \
-    /bin/bash -c "PREFIX_LOCATION=/openhands/micromamba BIN_FOLDER=/openhands/micromamba/bin INIT_YES=no CONDA_FORGE_YES=yes $(curl -L https://micro.mamba.pm/install.sh)" && \
-    /openhands/micromamba/bin/micromamba config remove channels defaults && \
-    /openhands/micromamba/bin/micromamba config list
-
-# Create the openhands virtual environment and install poetry and python
-RUN /openhands/micromamba/bin/micromamba create -n openhands -y && \
-    /openhands/micromamba/bin/micromamba install -n openhands -c conda-forge poetry python=3.12 -y
+# Install poetry
+RUN curl -fsSL --compressed https://install.python-poetry.org | python - && \
+    ln -s ~/.local/bin/poetry /usr/local/bin/poetry
 
 # Create a clean openhands directory including only the pyproject.toml, poetry.lock and openhands/__init__.py
 RUN \

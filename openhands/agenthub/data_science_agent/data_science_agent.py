@@ -140,13 +140,11 @@ class DataScienceBenchAgent(Agent):
 
         if not state.history:
             return False
-
         last_event = state.history[-1]
         if (
             isinstance(last_event, CmdOutputObservation)
-            and last_event.exit_code != 0
-            and 'limit' in last_event.content
-            and 'submit your best solution' in last_event.content
+            and f'Script has been run {self.cfg.feedback_iterations} times; limit of {self.cfg.feedback_iterations} reached. Exiting.'
+            in last_event.content
         ):
             return True
 

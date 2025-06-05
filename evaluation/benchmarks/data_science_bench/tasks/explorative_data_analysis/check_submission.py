@@ -1,30 +1,11 @@
 from pathlib import Path
-from sklearn.tree import DecisionTreeClassifier
+
 import pandas as pd
-import numpy as np
+from sklearn.tree import DecisionTreeClassifier
+
 RUN_COUNTER_FILE = Path('run_counter.txt')
 RUN_COUNTER_LIMIT = 20  # safeguard against accidental infinite loops
 
-def _update_run_counter(
-    path: Path = RUN_COUNTER_FILE, limit: int = RUN_COUNTER_LIMIT
-) -> int:
-    """Increment the run counter and enforce an upper bound.
-
-    Raises
-    ------
-    RuntimeError
-        If *limit* executions has been reached.
-    """
-    current = int(path.read_text().strip() or '0') if path.exists() else 0
-
-    if current >= limit:
-        raise RuntimeError(
-            f'Script has been run {current} times; limit of {limit} reached. '
-            'Please submit your best solution and exit.'
-        )
-    current += 1
-    path.write_text(str(current))
-    return current
 
 def parse_submission_file(path: Path, df: pd.DataFrame) -> pd.Series:
     y_score = pd.read_csv(path, header=None)
@@ -48,7 +29,6 @@ def parse_submission_file(path: Path, df: pd.DataFrame) -> pd.Series:
     return y_score
 
 
-
 def do_submission():
     csv_gt = list(Path(__file__).parent.glob('*.csv'))[0]
     df = pd.read_csv(csv_gt)
@@ -62,20 +42,30 @@ def do_submission():
             '/workspace/test_engineered_feature.csv not found. Please check the file path.'
         )
     # Get the y values from the training data
-    y_training_df = pd.read_csv("/workspace/train_labels.csv")
+    y_training_df = pd.read_csv('/workspace/train_labels.csv')
 
-    feature_train = parse_submission_file('/workspace/train_engineered_feature.csv', y_training_df)
+    feature_train = parse_submission_file(
+        '/workspace/train_engineered_feature.csv', y_training_df
+    )
     feature_test = parse_submission_file('/workspace/test_engineered_feature.csv', df)
     # Get the y values from the training data
     y_training = y_training_df.values.flatten()
     y_test = df.values.flatten()
     # y_training = y_training.iloc[:, 1].values.flatten()
-    assert len(y_training) == len(feature_train), "Length of y_training and y_score_train do not match"
-    assert len(df) == len(feature_test), "Length of y_training and y_score_test do not match"
+    assert len(y_training) == len(feature_train), (
+        'Length of y_training and y_score_train do not match'
+    )
+    assert len(df) == len(feature_test), (
+        'Length of y_training and y_score_test do not match'
+    )
 
-    # Assert that the y_score_train and y_score_test are not all digits 
-    assert not all([x.isdigit() for x in feature_train if isinstance(x,str)]), "y_score_train contains all digits, it should contain a single engineered and intepretable feature that will be then thresholded"
-    assert not all([x.isdigit() for x in feature_test if isinstance(x,str)]), "y_score_test contains all digits, it should contain a single engineered and intepretable feature that will be then thresholded"
+    # Assert that the y_score_train and y_score_test are not all digits
+    assert not all([x.isdigit() for x in feature_train if isinstance(x, str)]), (
+        'y_score_train contains all digits, it should contain a single engineered and intepretable feature that will be then thresholded'
+    )
+    assert not all([x.isdigit() for x in feature_test if isinstance(x, str)]), (
+        'y_score_test contains all digits, it should contain a single engineered and intepretable feature that will be then thresholded'
+    )
 
     try:
         feature_train = feature_train.astype(float)
@@ -97,9 +87,10 @@ def do_submission():
     accuracy_train = (y_training == pred_train).mean()
     return accuracy_test, accuracy_train, feature_train, feature_test
 
+
 def main():
     accuracy_test, accuracy_train, feature_train, feature_test = do_submission()
-    print(f"Submission is valid.")
+    print('Submission is valid.')
 
 
 if __name__ == '__main__':

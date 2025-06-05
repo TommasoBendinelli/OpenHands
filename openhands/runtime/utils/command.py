@@ -2,10 +2,6 @@ from openhands.core.config import AppConfig
 from openhands.runtime.plugins import PluginRequirement
 
 DEFAULT_PYTHON_PREFIX = [
-    '/openhands/micromamba/bin/micromamba',
-    'run',
-    '-n',
-    'openhands',
     'poetry',
     'run',
 ]

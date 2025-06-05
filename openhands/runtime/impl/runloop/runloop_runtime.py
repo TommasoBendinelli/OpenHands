@@ -90,9 +90,8 @@ class RunloopRuntime(ActionExecutionClient):
         # (ie browser) to be installed as root
         # Convert start_command list to a single command string with additional setup
         start_command_str = (
-            'export MAMBA_ROOT_PREFIX=/openhands/micromamba && '
             'cd /openhands/code && '
-            '/openhands/micromamba/bin/micromamba run -n openhands poetry config virtualenvs.path /openhands/poetry && '
+            'poetry config virtualenvs.path /openhands/poetry && '
             + ' '.join(start_command)
         )
         entrypoint = f"sudo bash -c '{start_command_str}'"

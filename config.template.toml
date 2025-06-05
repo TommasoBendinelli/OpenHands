@@ -17,6 +17,10 @@
 #modal_api_token_id = ""
 #modal_api_token_secret = ""
 
+# Whether to use micromamba/conda when building the runtime image
+#use_conda = false # Not implemented
+
+
 # API key for Daytona
 #daytona_api_key = ""
 

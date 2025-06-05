@@ -69,7 +69,7 @@ def format_task_dict(example, use_knowledge):
 def configure_app_for_evaluation(metadata: EvalMetadata, cfg: OmegaConf) -> AppConfig:
     sandbox_config = get_default_sandbox_config_for_eval()
     sandbox_config.base_container_image = 'python:3.12-bookworm'
-    sandbox_config.runtime_extra_deps = '/openhands/poetry/openhands-ai-5O4_aCHf-py3.12/bin/python  -m pip install numpy matplotlib pandas && python3 -m pip install numpy pandas matplotlib && python3 -m pip install scikit-learn'
+    sandbox_config.runtime_extra_deps = '/openhands/poetry/openhands-ai-5O4_aCHf-py3.12/bin/python  -m pip install numpy matplotlib pandas scikit-learn'
     metadata.agent_class = 'DataScienceBenchAgent'
 
     config = AppConfig(
@@ -270,7 +270,7 @@ def process_instance(
 
     # create the runtime configuration for this evaluation run
     config = configure_app_for_evaluation(metadata, cfg)
-
+    instruction = ''
     if instance['class_type'] == 'dummy_anomaly':
         contraints = []
         contraints.append('describe')

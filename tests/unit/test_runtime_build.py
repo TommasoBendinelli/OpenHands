@@ -30,7 +30,7 @@ from openhands.runtime.utils.runtime_build import (
 try:
     docker.from_env().ping()
 except Exception:
-    pytest.skip("docker daemon is not available", allow_module_level=True)
+    pytest.skip('docker daemon is not available', allow_module_level=True)
 
 OH_VERSION = f'oh_v{oh_version}'
 DEFAULT_BASE_IMAGE = 'nikolaik/python-nodejs:python3.12-nodejs22'
@@ -142,15 +142,12 @@ def test_generate_dockerfile_build_from_scratch():
     assert base_image in dockerfile_content
     assert 'apt-get update' in dockerfile_content
     assert 'wget curl' in dockerfile_content
-    assert 'poetry' in dockerfile_content and '-c conda-forge' in dockerfile_content
-    assert 'python=3.12' in dockerfile_content
+    assert 'poetry' in dockerfile_content
+    assert 'python3.12' in dockerfile_content
 
     # Check the update command
     assert 'COPY ./code/openhands /openhands/code/openhands' in dockerfile_content
-    assert (
-        '/openhands/micromamba/bin/micromamba run -n openhands poetry install'
-        in dockerfile_content
-    )
+    assert 'poetry install --only main' in dockerfile_content
 
 
 def test_generate_dockerfile_build_from_lock():
