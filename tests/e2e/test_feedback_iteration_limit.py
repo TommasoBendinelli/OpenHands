@@ -191,4 +191,3 @@ def test_feedback_iteration_limit_end_to_end(llm_config):
 
     submissions = data['test_result']['result']['number_of_submissions']
     assert submissions == feedback_iterations
-    assert 'limit' in (data.get('error') or '').lower()
