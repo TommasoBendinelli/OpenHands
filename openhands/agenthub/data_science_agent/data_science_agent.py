@@ -350,8 +350,14 @@ class DataScienceBenchAgent(Agent):
         actions = self.response_to_actions_fn(response)
         logger.debug(f'Actions after response_to_actions: {actions}')
         for action in actions:
+            if self._uses_sklearn(action):
+                raise RuntimeError('Scikit-learn usage is not allowed in this agent.')
             self.pending_actions.append(action)
-        return self.pending_actions.popleft()
+
+        next_action = self.pending_actions.popleft()
+        if self._uses_sklearn(next_action):
+            raise RuntimeError('Scikit-learn usage is not allowed in this agent.')
+        return next_action
 
     def _get_initial_user_message(self, history: list[Event]) -> MessageAction:
         """Finds the initial user message action from the full history."""
