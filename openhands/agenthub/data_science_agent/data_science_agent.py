@@ -27,6 +27,8 @@ from openhands.core.message import Message
 from openhands.events.action import (
     Action,
     AgentFinishAction,
+    CmdRunAction,
+    IPythonRunCellAction,
     MessageAction,
 )
 from openhands.events.event import Event
@@ -132,6 +134,36 @@ class DataScienceBenchAgent(Agent):
         super().reset()
         self.pending_actions.clear()
 
+    def _uses_sklearn(self, action: Action) -> bool:
+        """Detect if an action tries to use scikit-learn."""
+        if isinstance(action, IPythonRunCellAction):
+            code = action.code.lower()
+            if 'sklearn' in code or 'scikit-learn' in code:
+                return True
+        if isinstance(action, CmdRunAction):
+            cmd = action.command.lower()
+            if 'sklearn' in cmd or 'scikit-learn' in cmd:
+                return True
+            import shlex
+
+            tokens = shlex.split(action.command)
+            if tokens and tokens[0].startswith('python') and len(tokens) > 1:
+                # Look for the first non-flag argument as the script
+                script = None
+                for t in tokens[1:]:
+                    if not t.startswith('-'):
+                        script = t
+                        break
+                if script and script.endswith('.py') and os.path.exists(script):
+                    try:
+                        with open(script, 'r', encoding='utf-8') as f:
+                            contents = f.read().lower()
+                        if 'sklearn' in contents or 'scikit-learn' in contents:
+                            return True
+                    except OSError:
+                        pass
+        return False
+
     def _feedback_limit_reached(self, state: State) -> bool:
         """Check if the feedback iteration limit has been reached."""
         if not (self.cfg and getattr(self.cfg, 'feedback_iterations', 0) > 0):
@@ -166,7 +198,10 @@ class DataScienceBenchAgent(Agent):
         """
         # Continue with pending actions if any
         if self.pending_actions:
-            return self.pending_actions.popleft()
+            next_action = self.pending_actions.popleft()
+            if self._uses_sklearn(next_action):
+                raise RuntimeError('Scikit-learn usage is not allowed in this agent.')
+            return next_action
 
         if self._feedback_limit_reached(state):
             raise RuntimeError('Feedback iteration limit reached.')
