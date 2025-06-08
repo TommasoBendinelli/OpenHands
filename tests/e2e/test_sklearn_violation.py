@@ -167,4 +167,5 @@ def test_sklearn_violation_end_to_end(llm_config):
     with open(output_file) as f:
         data = json.loads(f.readline())
 
-    assert 'sklearn is disabled' in (data.get('error') or '').lower()
+    result = data.get('test_result', {}).get('result', {})
+    assert result.get('is_violated') is True

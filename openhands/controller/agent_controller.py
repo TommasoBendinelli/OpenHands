@@ -328,6 +328,9 @@ class AgentController:
                 or isinstance(e, LLMContextWindowExceedError)
             ):
                 reported = e
+            elif isinstance(e, RuntimeError):
+                # Preserve the original RuntimeError message
+                reported = e
             else:
                 self.log(
                     'warning',

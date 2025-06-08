@@ -522,6 +522,15 @@ def process_instance(
         scores = []
         number_of_submission = np.nan
 
+    # If the agent triggered a sklearn banned exception, mark it as a violation
+    if (
+        isinstance(is_violated, float)
+        and np.isnan(is_violated)
+        and state.last_error
+        and 'sklearn is disabled' in state.last_error.lower()
+    ):
+        is_violated = True
+
     # Call the orcal
 
     # ======= Attempt to evaluate the agent's edits =======
