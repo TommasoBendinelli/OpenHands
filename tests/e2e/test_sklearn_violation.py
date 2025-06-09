@@ -168,4 +168,4 @@ def test_sklearn_violation_end_to_end(llm_config):
         data = json.loads(f.readline())
 
     result = data.get('test_result', {}).get('result', {})
-    assert result.get('is_violated') is True
+    assert result.get('is_sklearn_violated') is True

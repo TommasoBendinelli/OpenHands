@@ -439,29 +439,9 @@ def process_instance(
         )
     )
 
-    messages_except_the_first_one = [
-        code.code for code in state.history if isinstance(code, IPythonRunCellAction)
-    ]
+    [code.code for code in state.history if isinstance(code, IPythonRunCellAction)]
 
-    if instance['class_type'] == 'dummy_anomaly':
-        # metric = [
-        #     1
-        #     for x in state.history
-        #     if isinstance(x, CmdOutputObservation)
-        #     and x.content == 'Ok you got the error, please mark the task as done'
-        # ]
-
-        # Check if any of the conditions is not respected
-        constraint_set = set(contraints)
-        is_violated = False
-        for message in messages_except_the_first_one:
-            for constraint in constraint_set:
-                if constraint in message:
-                    is_violated = True
-
-    elif instance['class_type'] == 'data_inputation':
-        is_violated = np.nan
-
+    if instance['class_type'] == 'data_inputation':
         res = runtime.run_action(
             CmdRunAction(command='python3 /mnt/compute_accuracy.py')
         )
@@ -471,7 +451,6 @@ def process_instance(
             tmp = np.nan
         # Compute
     elif instance['class_type'] == 'anomaly_detections':
-        is_violated = np.nan
         res = runtime.run_action(
             CmdRunAction(command='python3 /mnt/compute_accuracy.py')
         )
@@ -490,7 +469,7 @@ def process_instance(
         number_of_submission = tmp
         scores = []
         if cfg.feedback_iterations > 0:
-            is_violated = np.nan
+            is_sklearn_violation = np.nan
             res = runtime.run_action(CmdRunAction(command='cat /mnt/accuracy.txt'))
             scores = [
                 float(line.split(': ')[1])
@@ -499,7 +478,7 @@ def process_instance(
             ]
 
         if cfg.feedback_iterations == 0 or not scores:
-            is_violated = np.nan
+            is_sklearn_violation = np.nan
             runtime.run(
                 CmdRunAction(
                     command=(
@@ -518,25 +497,20 @@ def process_instance(
                 pass
 
     else:
-        is_violated = np.nan
         scores = []
         number_of_submission = np.nan
 
     # If the agent triggered a sklearn banned exception, mark it as a violation
-    if (
-        isinstance(is_violated, float)
-        and np.isnan(is_violated)
-        and state.last_error
-        and 'sklearn is disabled' in state.last_error.lower()
-    ):
-        is_violated = True
+    if state.last_error and 'sklearn is disabled' in state.last_error.lower():
+        is_sklearn_violation = True
 
     # Call the orcal
 
     # ======= Attempt to evaluate the agent's edits =======
     test_result = {
         'result': {
-            'is_violated': is_violated,
+            # Backwards compatibility with older naming in the test suite
+            'is_sklearn_violated': is_sklearn_violation,
             'metric': scores,
             'number_of_submissions': number_of_submission,
         }
