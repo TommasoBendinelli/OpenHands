@@ -469,7 +469,6 @@ def process_instance(
         number_of_submission = tmp
         scores = []
         if cfg.feedback_iterations > 0:
-            is_sklearn_violation = np.nan
             res = runtime.run_action(CmdRunAction(command='cat /mnt/accuracy.txt'))
             scores = [
                 float(line.split(': ')[1])
@@ -478,7 +477,6 @@ def process_instance(
             ]
 
         if cfg.feedback_iterations == 0 or not scores:
-            is_sklearn_violation = np.nan
             runtime.run(
                 CmdRunAction(
                     command=(
@@ -501,7 +499,11 @@ def process_instance(
         number_of_submission = np.nan
 
     # If the agent triggered a sklearn banned exception, mark it as a violation
-    if state.last_error and 'sklearn is disabled' in state.last_error.lower():
+    if (
+        state.last_error
+        and 'RuntimeError: Scikit-learn usage is not allowed in this agent.'
+        in state.last_error
+    ):
         is_sklearn_violation = True
 
     # Call the orcal
