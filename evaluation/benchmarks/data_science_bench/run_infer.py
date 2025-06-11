@@ -72,10 +72,14 @@ def configure_app_for_evaluation(metadata: EvalMetadata, cfg: OmegaConf) -> AppC
     sandbox_config.runtime_extra_deps = '/openhands/poetry/openhands-ai-5O4_aCHf-py3.12/bin/python  -m pip install numpy matplotlib pandas scikit-learn'
     metadata.agent_class = 'DataScienceBenchAgent'
 
+    runtime_mode = 'docker'
+    if not Path('/var/run/docker.sock').exists():
+        runtime_mode = 'local'
+
     config = AppConfig(
         default_agent=metadata.agent_class,
         run_as_openhands=False,
-        runtime='docker',
+        runtime=runtime_mode,
         max_budget_per_task=cfg.max_budget_per_task,
         extended=ExtendedConfig({'cfg': cfg}),
         sandbox=sandbox_config,
@@ -260,6 +264,12 @@ def process_instance(
     cfg: OmegaConf = None,
 ) -> EvalOutput:
     instance_id = instance.instance_id  # .replace('/', '__')
+
+    # Track whether the agent violated the sklearn usage constraint.
+    # This value is reported in the final `test_result` section.  Initialise it
+    # to ``False`` so that a violation is only flagged when the relevant error
+    # message is detected.
+    is_sklearn_violation = False
 
     # Set up the logger properly, so you can run multi-processing to parallelize the evaluation
     if reset_logger:
