@@ -1,16 +1,16 @@
 from pathlib import Path
 
-from openhands.core.config import AppConfig
+from openhands.core.config import OpenHandsConfig
 from openhands.core.config.utils import load_from_toml
 
 
-def _load_config() -> AppConfig:
+def _load_config() -> OpenHandsConfig:
     repo_root = Path(__file__).resolve().parents[2]
     config_path = repo_root / 'config.toml'
     if not config_path.exists():
         config_path = repo_root / 'config.template.toml'
 
-    cfg = AppConfig()
+    cfg = OpenHandsConfig()
     load_from_toml(cfg, str(config_path))
     return cfg
 

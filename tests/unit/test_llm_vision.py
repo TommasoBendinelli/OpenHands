@@ -1,11 +1,14 @@
+import os
+
 import numpy as np
 import pytest
 
-from openhands.core.config import AppConfig, load_from_toml
+from openhands.core.config import OpenHandsConfig, load_from_toml
 from openhands.core.message import ImageContent, Message, TextContent
 from openhands.llm.llm import LLM
 from openhands.runtime.browser.base64 import image_to_png_base64_url
-from tests.runtime.conftest import TEST_IN_CI
+
+TEST_IN_CI = os.getenv('TEST_IN_CI', 'False').lower() in ['true', '1', 'yes']
 
 
 @pytest.mark.skipif(
@@ -14,7 +17,7 @@ from tests.runtime.conftest import TEST_IN_CI
 )
 def test_llm_image_and_text() -> None:
     """Ensure the model can process image and text together."""
-    cfg = AppConfig()
+    cfg = OpenHandsConfig()
     load_from_toml(cfg, 'config.toml')
 
     if 'gpt-o4-mini' in cfg.llms:

@@ -22,8 +22,8 @@ from evaluation.utils.shared import (
 )
 from openhands.controller.state.state import State
 from openhands.core.config import (
-    AppConfig,
     ExtendedConfig,
+    OpenHandsConfig,
     get_llm_config_arg,
 )
 from openhands.core.logger import openhands_logger as logger
@@ -66,7 +66,9 @@ def format_task_dict(example, use_knowledge):
     return task
 
 
-def configure_app_for_evaluation(metadata: EvalMetadata, cfg: OmegaConf) -> AppConfig:
+def configure_app_for_evaluation(
+    metadata: EvalMetadata, cfg: OmegaConf
+) -> OpenHandsConfig:
     sandbox_config = get_default_sandbox_config_for_eval()
     sandbox_config.base_container_image = 'python:3.12-bookworm'
     sandbox_config.runtime_extra_deps = '/openhands/poetry/openhands-ai-5O4_aCHf-py3.12/bin/python  -m pip install numpy matplotlib pandas scikit-learn'
@@ -76,7 +78,7 @@ def configure_app_for_evaluation(metadata: EvalMetadata, cfg: OmegaConf) -> AppC
     if not Path('/var/run/docker.sock').exists():
         runtime_mode = 'local'
 
-    config = AppConfig(
+    config = OpenHandsConfig(
         default_agent=metadata.agent_class,
         run_as_openhands=False,
         runtime=runtime_mode,
