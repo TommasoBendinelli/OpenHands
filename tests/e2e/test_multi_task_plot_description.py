@@ -77,25 +77,15 @@ def patch_run_infer(path: Path) -> str:
 
     new_assign = ast.parse(
         'instruction = (\n'
-        "    'LOAD THE IMAGE logo.png FROM THE CURRENT DIRECTORY USING matplotlib. '"
-        "    'DISPLAY IT WITH plt.imshow AND plt.show() and then describe the image in detail. '"
+        "    'CREATE A SCATTER PLOT WITH POINTS (0,0) AND (1,1) USING MATPLOTLIB. '"
+        "    'SAVE IT TO plot.png AND DISPLAY IT WITH plt.show(). '"
+        '    \'THEN CALL parse_image("plot.png") TO DESCRIBE THE PLOT. \''
+        '    \'AFTER THAT, COMPUTE 2 + 2 AND PRINT "RESULT_A: 4". \''
+        "    'NEXT, COMPUTE 3 + 3, CREATE A BAR PLOT WITH HEIGHT 6, SAVE IT TO plot2.png, DISPLAY IT WITH plt.show(), '"
+        '    AND CALL parse_image("plot2.png"). \''
+        '    \'FINALLY, PRINT "COMBINED_RESULT: 10". DO NOTHING ELSE.\\n\'\n'
         ')\n'
     ).body[0]
-
-    copy_stmt = ast.parse(
-        "runtime.copy_to('docs/static/img/logo.png', '/workspace/')\n"
-    ).body[0]
-
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name == 'initialize_runtime':
-            for i, stmt in enumerate(node.body):
-                if isinstance(stmt, ast.Assign) and any(
-                    isinstance(t, ast.Name) and t.id == 'base_path'
-                    for t in stmt.targets
-                ):
-                    node.body.insert(i + 1, copy_stmt)
-                    break
-            break
 
     parent_map = {
         child: parent
@@ -123,7 +113,7 @@ def patch_run_infer(path: Path) -> str:
         'gpt-o4-mini',
     ],
 )
-def test_plot_description_end_to_end(llm_config):
+def test_plot_description_multi_task_end_to_end(llm_config):
     timestamp = '1970-01-01_00-00-00'
 
     day = timestamp.split('_')[0]
@@ -166,7 +156,7 @@ def test_plot_description_end_to_end(llm_config):
         'give_structure_hint=False',
         'disable_numbers=False',
         'is_read_csv_banned=False',
-        'max_iterations=5',
+        'max_iterations=50',
         'identifier_experiment=baseline',
         f'timestamp={timestamp}',
     ]
@@ -186,4 +176,11 @@ def test_plot_description_end_to_end(llm_config):
     assert any(
         'Reading image file from plot.png' in (entry.get('message') or '')
         for entry in history
+    )
+    assert any(
+        'Reading image file from plot2.png' in (entry.get('message') or '')
+        for entry in history
+    )
+    assert any(
+        'COMBINED_RESULT: 10' in (entry.get('message') or '') for entry in history
     )
