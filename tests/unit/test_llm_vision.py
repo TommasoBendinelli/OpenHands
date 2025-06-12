@@ -34,14 +34,12 @@ def test_llm_image_and_text() -> None:
         pytest.skip('No valid API key for vision test')
 
     # Create a simple red square image
-    img = np.zeros((32, 32, 3), dtype=np.uint8)
+    img = np.zeros((256, 256, 3), dtype=np.uint8)
     img[:, :] = [255, 0, 0]
     img_url = image_to_png_base64_url(img, add_data_prefix=True)
 
     llm = LLM(llm_cfg)
-    prompt = (
-        "Is the square in the image red or blue? Respond with 'red' or 'blue' only."
-    )
+    prompt = "Is the square in the image red or blue? Respond with 'blue', 'green', 'red', 'yellow', or 'other' only."
     message = Message(
         role='user',
         content=[TextContent(text=prompt), ImageContent(image_urls=[img_url])],
