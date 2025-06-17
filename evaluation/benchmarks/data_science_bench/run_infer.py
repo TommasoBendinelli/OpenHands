@@ -282,7 +282,10 @@ def process_instance(
 
     # create the runtime configuration for this evaluation run
     config = configure_app_for_evaluation(metadata, cfg)
-
+    system_prompt = """
+    You are an expert data scientist, you are given a task to solve by the user.
+    """
+    print(system_prompt)
     instruction = ''
     if instance['class_type'] == 'dummy_anomaly':
         contraints = []
