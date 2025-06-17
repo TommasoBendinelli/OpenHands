@@ -282,6 +282,7 @@ def process_instance(
 
     # create the runtime configuration for this evaluation run
     config = configure_app_for_evaluation(metadata, cfg)
+
     instruction = ''
     if instance['class_type'] == 'dummy_anomaly':
         contraints = []
@@ -298,7 +299,7 @@ def process_instance(
             entry = f'- You are not allowed to use any method/function that contains {entry} within its name.\n'
             to_be_added += entry
 
-        instruction = f"""You are an expert providing assistance about a tabular data task. There is an issue with one of the entries and you need to identify it based on statistical and machine learning analysis. Once you have identified the
+        instruction = f""" There is an issue with one of the entries and you need to identify it based on statistical and machine learning analysis. Once you have identified the
         issue, please call python3 test.py row_idx, where row_idx is the index of the row you think is wrong. If you get as response "Ok you got the error, please mark the task as done", then you are correct. If you get "No error", then you are wrong and you need to try again until you get the correct answer.
         The path of the dataset is /workspace/dataset.csv. You should open it with pandas
 

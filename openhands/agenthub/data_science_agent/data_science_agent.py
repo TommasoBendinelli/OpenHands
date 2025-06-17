@@ -209,7 +209,6 @@ class DataScienceBenchAgent(Agent):
             #     final_thought='Feedback iteration limit reached.',
             #     task_completed=AgentFinishTaskCompleted.PARTIAL,
             # )
-
         # if we're done, go back
         latest_user_message = state.get_last_user_message()
         if latest_user_message and latest_user_message.content.strip() == '/exit':
