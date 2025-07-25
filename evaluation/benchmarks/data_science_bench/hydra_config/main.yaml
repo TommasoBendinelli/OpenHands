@@ -5,8 +5,8 @@ eval_n_limit: 1
 eval_output_dir: # To be filled in by the script
 agent_cls: DataScienceBenchAgent
 eval_note: temp
-class_type: "data_inputation"
-instance: "wine"
+class_type: "explorative_data_analysis"
+instance: "channel_corr_easy"
 constraints: 0
 hints: 0
 trajectory_visualiser_folder: '/home/tommaso/repo/trajectory-visualizer/public'
@@ -36,7 +36,7 @@ give_structure_hint: False
 is_explaination_and_intepretation_included: false
 only_plots: false
 identifier_experiment: propotypying
-replay_trajectory_path: '' # If empty, do not replay any trajectory
+replay_trajectory_path: '/home/tommaso/repo/trajectories' # If empty, do not replay any trajectory
 # Inject current date and time as YYYY-MM-DD_HH-MM-SS
 timestamp: ${now:%Y-%m-%d_%H-%M-%S}
 # timestamp: ${now:%Y-%m-%d}

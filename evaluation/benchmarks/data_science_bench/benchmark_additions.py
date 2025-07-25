@@ -47,10 +47,9 @@ def kill_instance(output_file: str):
 
 def errorbench_user_response(
     state: State,
-    encapsulate_solution: bool = False,
+    msg: str,
     try_parse: Callable[[Action], str] | None = None,
 ) -> str:
-    msg = 'Please continue working on the task and submit a new solution to the user via compute_metrics.py. Your result is not good enough yet.\n'
     if state.history:
         from openhands.events.observation import CmdOutputObservation
 
@@ -86,10 +85,5 @@ def errorbench_user_response(
             for event in state.history
             if isinstance(event, MessageAction) and event.source == 'user'
         ]
-        # if len(user_msgs) >= 2:
-        #     # let the agent know that it can give up when it has tried 3 times
-        #     return (
-        #         msg
-        #         + 'If you want to give up, use the "finish" tool to finish the interaction.\n'
-        #     )
+
     return msg

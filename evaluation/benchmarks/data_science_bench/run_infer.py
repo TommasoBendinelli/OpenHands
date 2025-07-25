@@ -38,11 +38,10 @@ from openhands.utils.async_utils import call_async_from_sync
 
 from .benchmark_additions import errorbench_user_response, kill_instance, safe_append
 
+msg = 'Just follow the instructions specified at the beginning of the task. '
 AGENT_CLS_TO_FAKE_USER_RESPONSE_FN = {
     'CodeActAgent': codeact_user_response,
-    'DataScienceBenchAgent': partial(
-        errorbench_user_response, encapsulate_solution=True
-    ),
+    'DataScienceBenchAgent': partial(errorbench_user_response, msg=msg),
 }
 
 LOCAL_DATASET_PATH = os.path.join(os.path.dirname(__file__), 'benchmark')
