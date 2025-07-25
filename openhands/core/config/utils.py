@@ -5,7 +5,7 @@ import platform
 import sys
 from ast import literal_eval
 from types import UnionType
-from typing import MutableMapping, get_args, get_origin
+from typing import MutableMapping, get_args, get_origin, get_type_hints
 from uuid import uuid4
 
 import toml
@@ -25,6 +25,7 @@ from openhands.core.config.config_utils import (
     OH_MAX_ITERATIONS,
 )
 from openhands.core.config.extended_config import ExtendedConfig
+from openhands.core.config.kubernetes_config import KubernetesConfig
 from openhands.core.config.llm_config import LLMConfig
 from openhands.core.config.mcp_config import MCPConfig
 from openhands.core.config.openhands_config import OpenHandsConfig
@@ -66,7 +67,7 @@ def load_from_env(
     # helper function to set attributes based on env vars
     def set_attr_from_env(sub_config: BaseModel, prefix: str = '') -> None:
         """Set attributes of a config model based on environment variables."""
-        for field_name, field_info in sub_config.model_fields.items():
+        for field_name, field_info in sub_config.__class__.model_fields.items():
             field_value = getattr(sub_config, field_name)
             field_type = field_info.annotation
 
@@ -153,8 +154,22 @@ def load_from_toml(cfg: OpenHandsConfig, toml_file: str = 'config.toml') -> None
         core_config = toml_config['core']
 
     # Process core section if present
+    cfg_type_hints = get_type_hints(cfg.__class__)
     for key, value in core_config.items():
         if hasattr(cfg, key):
+            # Get expected type of the attribute
+            expected_type = cfg_type_hints.get(key, None)
+
+            # Check if expected_type is a Union that includes SecretStr and value is str, e.g. search_api_key
+            if expected_type:
+                origin = get_origin(expected_type)
+                args = get_args(expected_type)
+
+                if origin is UnionType and SecretStr in args and isinstance(value, str):
+                    value = SecretStr(value)
+                elif expected_type is SecretStr and isinstance(value, str):
+                    value = SecretStr(value)
+
             setattr(cfg, key, value)
         else:
             logger.openhands_logger.warning(
@@ -228,6 +243,19 @@ def load_from_toml(cfg: OpenHandsConfig, toml_file: str = 'config.toml') -> None
             # Re-raise ValueError from MCPConfig.from_toml_section
             raise ValueError('Error in MCP sections in config.toml')
 
+    # Process kubernetes section if present
+    if 'kubernetes' in toml_config:
+        try:
+            kubernetes_mapping = KubernetesConfig.from_toml_section(
+                toml_config['kubernetes']
+            )
+            if 'kubernetes' in kubernetes_mapping:
+                cfg.kubernetes = kubernetes_mapping['kubernetes']
+        except (TypeError, KeyError, ValidationError) as e:
+            logger.openhands_logger.warning(
+                f'Cannot parse [kubernetes] config from toml, values have not been applied.\nError: {e}'
+            )
+
     # Process condenser section if present
     if 'condenser' in toml_config:
         try:
@@ -286,6 +314,7 @@ def load_from_toml(cfg: OpenHandsConfig, toml_file: str = 'config.toml') -> None
         'sandbox',
         'condenser',
         'mcp',
+        'kubernetes',
     }
     for key in toml_config:
         if key.lower() not in known_sections:
@@ -751,6 +780,12 @@ def get_parser() -> argparse.ArgumentParser:
         help='Override the default settings for CLI mode',
         type=bool,
         default=False,
+    )
+    parser.add_argument(
+        '--log-level',
+        help='Set the log level',
+        type=str,
+        default=None,
     )
     return parser
 
