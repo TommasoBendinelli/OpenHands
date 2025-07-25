@@ -1,22 +1,21 @@
-"""
-llm_client.py – April 2025
-Python 3.12 compatible utility for GPT‑4o‑mini & Gemini 2.0 models
-"""
-
-from __future__ import annotations
-
 import json
 import re
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from textwrap import indent
-from typing import List, Optional
+from typing import Literal, Optional
 
 import numpy as np
 import pandas as pd
 from dotenv import find_dotenv, load_dotenv
 from omegaconf import OmegaConf
+
+from evaluation.benchmarks.data_science_bench.run_infer import SUBMISSION_FILE
+from openhands.events import Event
+from openhands.events.action import CmdRunAction
+from openhands.events.observation import Observation
+from openhands.events.serialization import event_from_dict
 
 load_dotenv(find_dotenv())  # automatically walks up folders
 
@@ -48,7 +47,7 @@ def round_table(latex: str, decimals: int = 2) -> str:
     )
 
     return float_re.sub(
-        lambda m: f"{float(m.group()):.{decimals}f}",
+        lambda m: f'{float(m.group()):.{decimals}f}',
         latex,
     )
 
@@ -56,9 +55,9 @@ def round_table(latex: str, decimals: int = 2) -> str:
 def make_overleaf_table(
     entry_with: pd.DataFrame,
     entry_without: pd.DataFrame,
-    metric: str = "Acc100_mean",
+    metric: str = 'Acc100_mean',
     round_decimals: int = 2,
-    na_rep: str = "–",
+    na_rep: str = '–',
     caption: str | None = None,
     label: str | None = None,
 ) -> str:
@@ -85,31 +84,31 @@ def make_overleaf_table(
     """
 
     # 1 · pivot both tables so that rows = tasks, cols = models
-    piv_w  = entry_with.pivot(index="instance", columns="Model", values=metric)
-    piv_wo = entry_without.pivot(index="instance", columns="Model", values=metric)
+    piv_w = entry_with.pivot(index='instance', columns='Model', values=metric)
+    piv_wo = entry_without.pivot(index='instance', columns='Model', values=metric)
 
     # 2 · harmonise task & model ordering
-    all_tasks  = sorted(set(piv_w.index).union(piv_wo.index))
+    all_tasks = sorted(set(piv_w.index).union(piv_wo.index))
     all_models = sorted(set(piv_w.columns).union(piv_wo.columns))
-    piv_w  = piv_w.reindex(index=all_tasks,  columns=all_models)
+    piv_w = piv_w.reindex(index=all_tasks, columns=all_models)
     piv_wo = piv_wo.reindex(index=all_tasks, columns=all_models)
 
     # 3 · add a second level to the column index: ('Model', 'With'/'Without')
 
-    piv_w .columns = pd.MultiIndex.from_tuples([(m, "with")    for m in piv_w.columns ])
-    piv_wo.columns = pd.MultiIndex.from_tuples([(m, "w/o") for m in piv_wo.columns])
+    piv_w.columns = pd.MultiIndex.from_tuples([(m, 'with') for m in piv_w.columns])
+    piv_wo.columns = pd.MultiIndex.from_tuples([(m, 'w/o') for m in piv_wo.columns])
 
     # 4 · concatenate → table; order columns as (Model₁,With) (Model₁,Without) …
     table = pd.concat([piv_w, piv_wo], axis=1)
     table = table.loc[:, sorted(table.columns, key=lambda x: (x[0], x[1]))]
     table = table.round(round_decimals)
     # 5 · emit LaTeX
-    n_models   = len(all_models)
-    col_format = "l" + "c" * (2 * n_models)   # 1 left-aligned index + 2 per model
+    n_models = len(all_models)
+    col_format = 'l' + 'c' * (2 * n_models)  # 1 left-aligned index + 2 per model
     latex = table.to_latex(
         multicolumn=True,
         multirow=False,
-        escape=False,          # keep underscores in task names
+        escape=False,  # keep underscores in task names
         na_rep=na_rep,
         column_format=col_format,
         caption=caption,
@@ -122,6 +121,35 @@ def make_overleaf_table(
     return latex
 
 
+def fetch_api_cost_per_submission(
+    history: list[Event],
+    scores: list[float],
+) -> list[float]:
+    """
+    Compute the cost per score.
+    """
+    cost_associated_with_scores = []
+
+    for idx, msg in enumerate(history):
+        if isinstance(msg, CmdRunAction):
+            if SUBMISSION_FILE in msg.command:
+                accumulated_cost = msg.llm_metrics.accumulated_cost
+
+                observation = history[idx + 1]
+                if not observation.success:
+                    continue  # skip failed submissions
+                assert isinstance(observation, Observation)
+                # Extract the score from the observation
+                test_set_idx, metric = get_metric_from_compute_metric_observation(
+                    observation.content
+                )
+                if (test_set_idx >= len(scores)) or scores[test_set_idx - 1] != metric:
+                    raise ValueError('Scores do not match the expected index.')
+                cost_associated_with_scores.append(accumulated_cost)
+
+    return cost_associated_with_scores
+
+
 def create_accuracy(
     model_results_df: pd.DataFrame,
     important_columns: tuple[str, ...] = (
@@ -131,10 +159,10 @@ def create_accuracy(
     ),
     model_order: tuple[str, ...] = (
         'Gemini Flash 2.5',
-        'Gemini Pro 2.5',
-        'GPT-4.1',
-        'o4-mini',
-        'Claude 3.7 Sonnet',
+        # 'Gemini Pro 2.5',
+        # 'GPT-4.1',
+        # 'o4-mini',
+        # 'Claude 3.7 Sonnet',
     ),
     show_percent: bool = True,  # ⇦ NEW FLAG
 ) -> str:
@@ -201,7 +229,7 @@ def create_accuracy(
     first_end = 1 + n_metrics
     second_end = 1 + 2 * n_metrics
     cmidrules = (
-        rf'\cmidrule(lr){{2-{first_end}}}\cmidrule(lr){{{first_end+1}-{second_end}}}'
+        rf'\cmidrule(lr){{2-{first_end}}}\cmidrule(lr){{{first_end + 1}-{second_end}}}'
     )
     col_spec = '@{}l' + 'c' * (2 * n_metrics) + '@{}'
 
@@ -236,10 +264,10 @@ def fill_costs_pycalls_table(
     ),
     model_order: tuple[str, ...] = (
         'Gemini Flash 2.5',
-        'Gemini Pro 2.5',
-        'GPT-4.1',
-        'o4-mini',
-        'Claude 3.7 Sonnet',
+        # 'Gemini Pro 2.5',
+        # 'GPT-4.1',
+        # 'o4-mini',
+        # 'Claude 3.7 Sonnet',
     ),
 ) -> str:
     """
@@ -306,7 +334,7 @@ def fill_costs_pycalls_table(
     first_end = 1 + n_metrics
     second_end = 1 + 2 * n_metrics
     cmidrules = (
-        rf'\cmidrule(lr){{2-{first_end}}}\cmidrule(lr){{{first_end+1}-{second_end}}}'
+        rf'\cmidrule(lr){{2-{first_end}}}\cmidrule(lr){{{first_end + 1}-{second_end}}}'
     )
     col_spec = '@{}l' + 'c' * (2 * n_metrics) + '@{}'
 
@@ -351,13 +379,32 @@ _TS_WITH_IDX_RE = re.compile(
     r'^(?P<ts>\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})_(?P<idx>\d+)$'
 )
 
+# Custom name map for specific model configurations
+# Sjpiöd ne a function that returns a mapping of model names
+
+
+def custom_name_map(llm_config: str) -> str:
+    name_map = {
+        'gemini-flash-preview-05-20': 'gemini-2.5-flash-preview-05-20',
+    }
+    return name_map.get(llm_config, llm_config)
+
 
 def _load_experiment(folder: Path) -> tuple[dict, dict]:
     meta, out = {}, {}
+
+    cfg = OmegaConf.load(folder / '.hydra' / 'config.yaml')
+
+    # new naming: 2025-07-21_11-08-02_1/channel_divergence/DataScienceBenchAgent/gemini-2.5-flash-preview-05-20_maxiter_30_N_temp
+    # folder = (
+    #     folder
+    #     / cfg.instance
+    #     / cfg.agent_cls
+    #     / f"{custom_name_map(cfg.llm_config)}_maxiter_{cfg.max_iterations}_N_temp"
+    # )
     meta_path = folder / METADATA_JSON
     output_path = folder / OUTPUT_JSON
 
-    cfg = OmegaConf.load(folder / '.hydra' / 'config.yaml')
     if meta_path.exists():
         try:
             meta = json.loads(meta_path.read_text(encoding='utf-8'))
@@ -375,12 +422,22 @@ def _load_experiment(folder: Path) -> tuple[dict, dict]:
     else:
         print(f'[INFO] {output_path} missing')
 
-    return meta, out, cfg
+    assert len(out) == 1, f'Expected exactly one output entry, got {len(out)}'
+
+    assert isinstance(out[0]['history'], list)
+
+    typed_history = []
+    for raw_event in out[0]['history']:
+        event = event_from_dict(raw_event)
+        typed_history.append(event)
+
+    out[0]['history'] = typed_history
+    return meta, out[0], cfg
 
 
 def get_folders_in_range(
     base_dir: Path, after: Optional[datetime], before: Optional[datetime]
-) -> List[Path]:
+) -> list[Path]:
     """
     Get list of subfolders matching the timestamp+index regex and falling within a datetime range.
 
@@ -436,62 +493,106 @@ def get_folders_in_range(
     return matching_paths
 
 
-def get_metric_before_violation(before: str, outputs: list[dict]):
-    # find all occurrences of "'id': <digits>"
-    match_id = int(re.findall(r"'id'\s*:\s*(\d+)", before)[-1])
-
-    # Collect all the accuracy on the test set Accuracy on test set
-    outputs = [
-        x
-        for x in outputs[0]['history']
-        if 'content' in x
-        and 'Accuracy on test set' in x['content']
-        and x['id'] < match_id
-    ]
-    # Keep only those before the match
-
-    accuracies = []
-    pattern = re.compile(r'Accuracy on test set \d+:\s*([0-9]*\.?[0-9]+)')
-
-    for x in outputs:
-        content = x.get('content', '')
-        # find all numbers after “Accuracy on test set <digit>:”
-        for match in pattern.findall(content):
-            accuracies.append(float(match))
-
-    return accuracies, [outputs], match_id
+_METRIC_PATTERN = re.compile(r'Accuracy on test set\s+(\d+)\s*:\s*([0-9]*\.?[0-9]+)')
 
 
-def filter_actions_by_observation(history: list[dict], obs_type: str) -> list[dict]:
+def get_metric_from_compute_metric_observation(content: str) -> tuple[int, float]:
+    """
+    Extracts the test set index and accuracy metric from a string like:
+      "Accuracy on test set 3: 0.8765"
+    and returns them as (3, 0.8765).
+
+    Raises:
+        ValueError: if no matching metric is found.
+    """
+    match = _METRIC_PATTERN.search(content)
+    if not match:
+        raise ValueError(f'Could not find metric in content: {content!r}')
+
+    test_set_idx = int(match.group(1))
+    metric_value = float(match.group(2))
+    return test_set_idx, metric_value
+
+
+def get_scores_from_history(history: list[Event]) -> list[float]:
+    """
+    Extracts all accuracy metrics from the history of events.
+    Returns a list of floats representing the metrics.
+    """
+    metrics = []
+    for event in history:
+        if isinstance(event, Observation) and 'Accuracy on test set' in event.content:
+            try:
+                _, metric = get_metric_from_compute_metric_observation(event.content)
+                metrics.append(metric)
+            except ValueError as e:
+                print(f'Skipping event due to error: {e}')
+    return metrics
+
+
+# def get_metric_before_violation(before: str, outputs: list[dict]):
+#     # find all occurrences of "'id': <digits>"
+#     match_id = int(re.findall(r"'id'\s*:\s*(\d+)", before)[-1])
+
+#     # Collect all the accuracy on the test set Accuracy on test set
+#     outputs = [
+#         x
+#         for x in outputs[0]['history']
+#         if 'content' in x
+#         and 'Accuracy on test set' in x['content']
+#         and x['id'] < match_id
+#     ]
+#     # Keep only those before the match
+
+#     accuracies = []
+#     pattern = re.compile(r'Accuracy on test set \d+:\s*([0-9]*\.?[0-9]+)')
+
+#     for x in outputs:
+#         content = x.get('content', '')
+#         # find all numbers after “Accuracy on test set <digit>:”
+#         for match in pattern.findall(content):
+#             accuracies.append(float(match))
+
+#     return accuracies, [outputs], match_id
+
+
+def filter_events_by_subclass(history: list[Event], obs_type: str) -> list[Event]:
     """
     Return all entries in `history` whose 'observation' field equals `obs_type`.
     """
-    return [entry for entry in history if entry.get('observation') == obs_type]
-
-
-def get_action_ids_by_observation(history: list[dict], obs_type: str) -> list[int]:
-    """
-    Return the list of 'id' fields for entries in `history` matching `obs_type`.
-    """
-    return [entry['id'] for entry in filter_actions_by_observation(history, obs_type)]
+    return [entry for entry in history if entry.__class__.__name__ == obs_type]
 
 
 # Get all the entries evaluation/evaluation_outputs/outputs
-ROOT_DIR = Path('evaluation/evaluation_outputs/outputs')
-AFTER = datetime.strptime('2025-05-12_00-00-00', '%Y-%m-%d_%H-%M-%S')
+ROOT_DIR = Path(
+    '/home/tommaso/home_tommaso/repos/OpenHands/evaluation/evaluation_outputs/outputs'
+)
+AFTER = datetime.strptime('2025-05-10_15-59-51', '%Y-%m-%d_%H-%M-%S')
 CHECKING_MISSING_ENTRIES = False
 BEFORE = None  # datetime.strptime('2025-05-06_11-47-22', '%Y-%m-%d_%H-%M-%S')
 # AFTER = None
-# BEFORE = None
+# BEFORE = datetime.strptime('2025-07-22_17-00-14', '%Y-%m-%d_%H-%M-%S')
 METADATA_JSON = 'metadata.json'
 OUTPUT_JSON = 'output.jsonl'
-VALID_MODELS = ['gemini_pro_pro', 'gemini_pro', 'gemini_lite',
-       'open_router_claude', 'gpt-4o', 'gpt-4o-mini', 'gpt-o3',
-       'open_router_gpt-4o', 'gpt-o3-mini', 'gpt-o4-mini', 'deepseek',
-       'llama', 'gemma-3-27b-it', 'mistral-small-24b-instruct-2503',
-       'gpt-41']
+VALID_MODELS = [
+    'gemini-flash-preview-05-20',
+    # 'gemini_pro',
+    # 'gemini_lite',
+    # 'open_router_claude',
+    # 'gpt-4o',
+    # 'gpt-4o-mini',
+    # 'gpt-o3',
+    # 'open_router_gpt-4o',
+    # 'gpt-o3-mini',
+    # 'gpt-o4-mini',
+    # 'deepseek',
+    # 'llama',
+    # 'gemma-3-27b-it',
+    # 'mistral-small-24b-instruct-2503',
+    # 'gpt-41',
+]
 
-MODELS_TO_DROP = ["gemini_lite", "gpt-o3", "gpt-4o-mini"]
+MODELS_TO_DROP = []
 
 FATAL_ERRORS = {
     "BadRequestError: litellm.BadRequestError: OpenAIException - Unsupported parameter: 'stop' is not supported with this model.",
@@ -540,138 +641,221 @@ time_series_datasets = [
     'periodic_presence',
 ]
 
-NAMING_MAP  = {
-            'gemini_pro': 'Gemini Flash 2.5',
-            'gemini_pro_pro': 'Gemini Pro 2.5',
-            'open_router_claude': 'Claude 3.7 Sonnet',
-            'deepseek': 'DeepSeek R1',
-            'gpt-o4-mini': 'o4-mini',
-            'gpt-41': 'GPT-4.1',
-        }
+NAMING_MAP = {
+    'gemini-flash-preview-05-20': 'Gemini Flash 2.5',
+    'gemini_pro': 'Gemini Flash 2.5',
+    'gemini_pro_pro': 'Gemini Pro 2.5',
+    'open_router_claude': 'Claude 3.7 Sonnet',
+    'deepseek': 'DeepSeek R1',
+    'gpt-o4-mini': 'o4-mini',
+    'gpt-41': 'GPT-4.1',
+}
 
 tabular_datasets = ['sum_threshold']
 
 
+def validate_experiment_metadata(metadata: dict, output: dict, cfg: dict) -> bool:
+    if not output:
+        print(
+            f'[WARN] No outputs found for {metadata.get("identifier_experiment", "unknown")}'
+        )
+        return False
+
+    if 'identifier_experiment' not in cfg:
+        print(
+            f'[WARN] No identifier_experiment in config for {metadata.get("identifier_experiment", "unknown")}'
+        )
+        return False
+
+    err = output.get('error')
+    if err in FATAL_ERRORS or (
+        err and "RequestHTTPError: Server error '500 Internal Server Err" in err
+    ):
+        print(
+            f'[WARN] Fatal error found in outputs for {metadata.get("identifier_experiment", "unknown")}: {err}'
+        )
+        return False
+
+    if len(output['test_result']['result']['metric']) > 5:
+        print(
+            f'[WARN] More than 5 metrics found in outputs for {metadata.get("identifier_experiment", "unknown")}'
+        )
+        return False
+
+    return True
+
+
+def validate_history_errors(
+    history: list[Event],
+    max_allowed_errors: int = 1,
+) -> Optional[str]:
+    """
+    Returns a message if there are too many raise-Exception observations,
+    otherwise None.
+    """
+    error_obs = [
+        ev
+        for ev in history
+        if isinstance(ev, Observation) and 'raise Exception(' in ev.content
+    ]
+    if len(error_obs) > max_allowed_errors:
+        return False
+    return True
+
+
 def main():
-    runs = sorted(get_folders_in_range(ROOT_DIR, AFTER, BEFORE))
+    folders = sorted(get_folders_in_range(ROOT_DIR, AFTER, BEFORE))
 
     # Iterate over the folders
     res = {}
     entries_df = []
-    for folder_identifier, folder in enumerate(runs):
+    for folder_identifier, folder in enumerate(folders):
         # Open metadata
-        metadata, outputs, cfg = _load_experiment(folder)
-
-
-
-
-        if not outputs:
+        try:
+            metadata, output, cfg = _load_experiment(folder)
+        except AssertionError:
+            continue
+        if not validate_experiment_metadata(metadata, output, cfg):
             continue
 
-        if 'identifier_experiment' not in cfg:
+        if not validate_history_errors(output['history']):
+            print(f'[WARN] Too many errors in history for {folder}')
             continue
 
-        err = outputs[0].get('error')
+        scores = get_scores_from_history(output['history'])
 
-        if err in FATAL_ERRORS or (
-            err and "RequestHTTPError: Server error '500 Internal Server Err" in err
-        ):
+        try:
+            cost_associated_with_scores = fetch_api_cost_per_submission(
+                output['history'], scores
+            )
+        except ValueError as e:
+            print(f'Mismatched scores in {folder}: {e}')
             continue
 
-        history = outputs[0]['history']
-        IPythonActions = filter_actions_by_observation(history, 'run_ipython')
-        IPythonActionsIDS = get_action_ids_by_observation(history, 'run_ipython')
-        assert len(IPythonActions) == len(
-            IPythonActionsIDS
-        ), 'IPythonActions and IPythonActionsIDS should be the same length'
-        AssistantShellActions = filter_actions_by_observation(history, 'run')
+        IPython_calls = filter_events_by_subclass(
+            output['history'], 'IPythonRunCellAction'
+        )
+
+        IPython_observations = filter_events_by_subclass(
+            output['history'], 'IPythonRunCellObservation'
+        )
+        assert (len(IPython_calls) == len(IPython_observations)) or (
+            len(IPython_calls) == len(IPython_observations) + 1
+        ), (
+            f'Expected same number of IPython calls and observations, got {len(IPython_calls)} calls and {len(IPython_observations)} observations'
+        )
+        # IPythonActionsCellAction = filter_events_by_subclass(output['history'], 'IPythonRunCellAction')
+        assistant_shell_actions = filter_events_by_subclass(
+            output['history'], 'CmdRunAction'
+        )
 
         # Get the id of the first submission
-        tmp = min(
-            [
-                x['id']
-                for x in outputs[0]['history']
-                if 'content' in x and 'Accuracy on test set' in x['content']
-            ],
+        first_submission_id = min(
+            [x.id for x in IPython_observations if 'Accuracy on test set' in x.content],
             default=-1,
         )
 
-        if tmp == -1:
-            api_call_before_first_submission = np.nan
-        else:
-            api_call_before_first_submission = len(
-                [x for x in IPythonActionsIDS if x < tmp]
-            )
-
-        metrics = outputs[0]['test_result']['result']['metric']
-        outputs_new = None
-        ids_IPythonActions = np.nan
-        str_IPythonActions = str(IPythonActions)
-
-        before, sep, _ = str_IPythonActions.partition(
-            "raise Exception('sklearn is disabled!')"
+        python_calls_before_first_submission = (
+            np.nan
+            if first_submission_id == -1
+            else sum(x.id < first_submission_id for x in IPython_observations)
         )
-        if sep:
-            metrics_new, outputs_new, idx_goal = get_metric_before_violation(
-                before, outputs
-            )
-            if len(metrics_new) < len(metrics):
-                metrics = metrics_new
-            is_sklearn_violation = True
-            ids_IPythonActions = len(
-                [x['id'] for x in IPythonActions if x['id'] < idx_goal]
-            )
-        else:
-            is_sklearn_violation = False
 
-        before, sep, _ = str_IPythonActions.partition(
-            "raise Exception('you are not allowed to use pd.read_csv!')"
-        )
-        if sep:
-            metrics, outputs_new, idx_goal = get_metric_before_violation(
-                before, outputs
-            )
-            is_read_csv_violation = True
-            if len(metrics_new) < len(metrics):
-                metrics = metrics_new
-            ids_IPythonActions = len(
-                [x['id'] for x in IPythonActions if x['id'] < idx_goal]
-            )
-        else:
-            is_read_csv_violation = False
+        metrics = output['test_result']['result']['metric']
 
-        before, sep, _ = str_IPythonActions.partition('/mnt/test_gt.csv')
-        if sep:
-            # keep everything before the CSV path
-            metrics_new, outputs_new, idx_goal = get_metric_before_violation(
-                before, outputs
-            )
-            if len(metrics_new) < len(metrics):
-                metrics = metrics_new
-            is_cheating = True
-            ids_IPythonActions = len(
-                [x['id'] for x in IPythonActions if x['id'] < idx_goal]
-            )
-        elif '/mnt/test_gt.csv' in str(AssistantShellActions):
-            before = str(AssistantShellActions).split('/mnt/test_gt.csv')[0]
-            metrics_new, outputs_new, idx_goal = get_metric_before_violation(
-                before, outputs
-            )
-            is_cheating = False
-            if len(metrics_new) < len(metrics):
-                metrics = metrics_new
-            ids_IPythonActions = len(
-                [x['id'] for x in IPythonActions if x['id'] < idx_goal]
-            )
-        else:
-            is_cheating = False
-            # match = -1
+        error_ids = [
+            x.id for x in IPython_observations if 'raise Exception(' in x.content
+        ]
 
-        if outputs_new is not None:
-            outputs = outputs_new
+        violation_type: Literal['sklearn', 'read_csv', 'cheating', 'none'] = 'none'
+        if len(error_ids) == 1:
+            error_type = [
+                x for x in IPython_observations if 'raise Exception(' in x.content
+            ]
 
-        if len(metrics) > 5 and max([x for x in metrics]) > 0.99:
-            continue
+            if 'sklearn' in error_type[0].content:
+                violation_type = 'sklearn'
+            elif 'pd.read_csv' in error_type[0].content:
+                violation_type = 'read_csv'
+            elif '/mnt/test_gt.csv' in error_type[0].content:
+                violation_type = 'cheating'
+
+            # Keep everything before the error
+            IPython_observations = [
+                x for x in IPython_observations if x.id < error_ids[0]
+            ]
+            assistant_shell_actions = [
+                x for x in assistant_shell_actions if x.id < error_ids[0]
+            ]
+
+        # outputs_new = None
+        # ids_IPythonActions = np.nan
+        # str_IPythonActions = str(IPythonActions)
+
+        # before, sep, _ = str_IPythonActions.partition(
+        #     "raise Exception('sklearn is disabled!')"
+        # )
+        # if sep:
+        #     metrics_new, outputs_new, idx_goal = get_metric_before_violation(
+        #         before, output
+        #     )
+        #     if len(metrics_new) < len(metrics):
+        #         metrics = metrics_new
+        #     is_sklearn_violation = True
+        #     ids_IPythonActions = len(
+        #         [x['id'] for x in IPythonActions if x['id'] < idx_goal]
+        #     )
+        # else:
+        #     is_sklearn_violation = False
+
+        # before, sep, _ = str_IPythonActions.partition(
+        #     "raise Exception('you are not allowed to use pd.read_csv!')"
+        # )
+        # if sep:
+        #     metrics, outputs_new, idx_goal = get_metric_before_violation(
+        #         before, output
+        #     )
+        #     is_read_csv_violation = True
+        #     if len(metrics_new) < len(metrics):
+        #         metrics = metrics_new
+        #     ids_IPythonActions = len(
+        #         [x['id'] for x in IPythonActions if x['id'] < idx_goal]
+        #     )
+        # else:
+        #     is_read_csv_violation = False
+
+        # before, sep, _ = str_IPythonActions.partition('/mnt/test_gt.csv')
+        # if sep:
+        #     # keep everything before the CSV path
+        #     metrics_new, outputs_new, idx_goal = get_metric_before_violation(
+        #         before, output
+        #     )
+        #     if len(metrics_new) < len(metrics):
+        #         metrics = metrics_new
+        #     is_cheating = True
+        #     ids_IPythonActions = len(
+        #         [x['id'] for x in IPythonActions if x['id'] < idx_goal]
+        #     )
+        # elif '/mnt/test_gt.csv' in str(AssistantShellActions):
+        #     before = str(AssistantShellActions).split('/mnt/test_gt.csv')[0]
+        #     metrics_new, outputs_new, idx_goal = get_metric_before_violation(
+        #         before, output
+        #     )
+        #     is_cheating = False
+        #     if len(metrics_new) < len(metrics):
+        #         metrics = metrics_new
+        #     ids_IPythonActions = len(
+        #         [x['id'] for x in IPythonActions if x['id'] < idx_goal]
+        #     )
+        # else:
+        #     is_cheating = False
+        #     # match = -1
+
+        # if outputs_new is not None:
+        #     output = outputs_new
+
+        # if len(metrics) > 5 and max([x for x in metrics]) > 0.99:
+        #     continue
 
         # instance = cfg['instance']
         # contraints = cfg['constraints']
@@ -680,7 +864,6 @@ def main():
         res[str(folder)] = {}
         res[str(folder)]['metadata'] = metadata
         res[str(folder)]['metrics'] = []
-        assert len(outputs) == 1, 'Multiple outputs found'
         # for key, output in outputs.items():
 
         # Chck in the folder how many pictures get generated
@@ -693,8 +876,8 @@ def main():
             number_of_submissions = 0
         res[str(folder)]['metrics'].append(metrics)
         res[str(folder)]['number_of_submissions'] = number_of_submissions
-        if 'metrics' in outputs[0]:
-            accumulated_cost = outputs[0]['metrics']['accumulated_cost']
+        if 'metrics' in output:
+            accumulated_cost = output['metrics']['accumulated_cost']
 
         else:
             # raise ValueError(
@@ -702,101 +885,51 @@ def main():
             # )
             accumulated_cost = np.nan
 
-        scores = list(res[str(folder)]['metrics'])
+            # elif 'gemini' in llm_config:
+            #     for idx, score in enumerate(scores, 1):
+            #         # Search in which msg there is "idx: score"
+            #         for idx_msg, msg in enumerate(msgs[to_go_idx:], to_go_idx):
+            #             if 'content' not in msg:
+            #                 continue
+            #             if f'Accuracy on test set {idx}:' in msg['content']:
+            #                 to_go_idx = idx
+            #                 break
 
-        def compute_cost_per_score(
-            msgs: list[dict],
-            costs: list[dict],
-            scores: list[float],
-            llm_config: str,
-        ) -> float:
-            """
-            Compute the cost per score.
-            """
-            cost_associated_with_score = []
-            to_go_idx = 0
+            #         # if number_of_submissions > 0:
+            #         #     assert to_go_idx != 0, "to_go_idx should not be 0"
 
-            if (
-                llm_config == 'open_router_claude'
-                or 'gpt-o3' in llm_config
-                or 'gpt-4o' in llm_config
-                or 'gpt-o4-mini' in llm_config
-                or 'deepseek' in llm_config
-                or 'llama' in llm_config
-                or 'gemma' in llm_config
-                or 'mistral' in llm_config
-                or 'gemini' in llm_config
-                or 'gpt-41' in llm_config
-            ):
-                # Get the index of the first message that contains "Accuracy on test set"
-                accumulated_cost = 0
-                # if len(scores) > 1:
-                #     breakpoint()
-                for idx, msg in enumerate(msgs):
-                    if 'llm_metrics' in msg:
-                        accumulated_cost = msg['llm_metrics'][
-                            'accumulated_cost'
-                        ]  # + accumulated_cost
+            #         # Get the idx - 1 and sum the costs up to that point
+            #         if to_go_idx == 0 and len(scores) > 1:
+            #             cost_sum = np.nan
+            #         elif to_go_idx == 0 and len(scores) == 1:
+            #             cost_sum = sum(x['cost'] for x in costs[:])
+            #         else:
+            #             cost_sum = sum(x['cost'] for x in costs[:to_go_idx])
 
-                    if 'content' not in msg:
-                        continue
-                    if 'Accuracy on test set' in msg['content']:
-                        cost_associated_with_score.append(accumulated_cost)
-                return cost_associated_with_score
+            #         cost_associated_with_score.append(cost_sum)
 
-            elif 'gemini' in llm_config:
-                for idx, score in enumerate(scores, 1):
-                    # Search in which msg there is "idx: score"
-                    for idx_msg, msg in enumerate(msgs[to_go_idx:], to_go_idx):
-                        if 'content' not in msg:
-                            continue
-                        if f'Accuracy on test set {idx}:' in msg['content']:
-                            to_go_idx = idx
-                            break
+            #     return cost_associated_with_score
+            # else:
+            #     raise ValueError(
+            #         f'Unknown llm_config: {llm_config}. Please check the config.'
+            #     )
 
-                    # if number_of_submissions > 0:
-                    #     assert to_go_idx != 0, "to_go_idx should not be 0"
-
-                    # Get the idx - 1 and sum the costs up to that point
-                    if to_go_idx == 0 and len(scores) > 1:
-                        cost_sum = np.nan
-                    elif to_go_idx == 0 and len(scores) == 1:
-                        cost_sum = sum(x['cost'] for x in costs[:])
-                    else:
-                        cost_sum = sum(x['cost'] for x in costs[:to_go_idx])
-
-                    cost_associated_with_score.append(cost_sum)
-
-                return cost_associated_with_score
-            else:
-                raise ValueError(
-                    f'Unknown llm_config: {llm_config}. Please check the config.'
-                )
-
-        if 'history' in outputs[0]:
-            msgs = outputs[0]['history']
-            costs = outputs[0]['metrics']['costs']
-            cost_associated_with_scores = compute_cost_per_score(
-                msgs, costs, scores[0], llm_config=cfg['llm_config']
-            )
-        else:
-            accumulated_cost = np.nan
         # if np.isnan(accumulated_cost):
         #     breakpoint()
         res[str(folder)]['accumulated_cost'] = accumulated_cost
 
         current_dict = {
-            'metric': scores,
+            'metric': [scores],
             'cost_associated_with_scores': [cost_associated_with_scores],
         }
         df = pd.DataFrame.from_dict(current_dict)
 
         if (
-            'error' in outputs[0]
-            and outputs[0]['error']
-            and 'RuntimeError: Agent reached maximum budget' in outputs[0]['error']
+            'error' in output
+            and output['error']
+            and 'RuntimeError: Agent reached maximum budget' in output['error']
         ):
-            outputs[0]['error'] = None
+            output['error'] = None
             use_max_budget = True
         else:
             use_max_budget = False
@@ -807,24 +940,21 @@ def main():
             df[key] = value
 
         # df['is_plotting_enabled'] = cfg['is_plotting_enabled']
-        if 'error' in outputs[0]:
-            df['error'] = outputs[0]['error']
+        if 'error' in output:
+            df['error'] = output['error']
         else:
             df['error'] = None
         df['use_max_budget'] = use_max_budget
 
         df['folder'] = folder.name
-        df['is_sklearn_violation'] = is_sklearn_violation
-        df['is_read_csv_violation'] = is_read_csv_violation
-        df['is_cheating'] = is_cheating
-        df['ids_IPythonActions'] = ids_IPythonActions
+        df['violation'] = violation_type
         df['is_stuck_in_a_loop'] = (
             'AgentStuckInLoopError: Agent got stuck in a loop' == df['error']
         )
 
-        df['number_of_python_calls'] = len(IPythonActions)
+        df['number_of_python_calls'] = len(IPython_calls)
         df['number_of_python_calls_before_first_submission'] = (
-            api_call_before_first_submission
+            python_calls_before_first_submission
         )
 
         df['Acc100'] = df['metric'].apply(
@@ -848,18 +978,20 @@ def main():
             lambda x: x[-1] if len(x) > 0 else np.nan
         )
         df['diff'] = df.apply(
-            lambda x: x['last_submission'] - x['first_submission']
-            if not np.isnan(x['first_submission'])
-            and not np.isnan(x['last_submission'])
-            else np.nan,
+            lambda x: (
+                x['last_submission'] - x['first_submission']
+                if not np.isnan(x['first_submission'])
+                and not np.isnan(x['last_submission'])
+                else np.nan
+            ),
             axis=1,
         )
         df['folder_identifier'] = folder_identifier
         # if "channel_divergence" in df['instance'].iloc[0] and "41" in df['llm_config'].iloc[0]:
         #     breakpoint()
-          # Rename channel_divergence to channel_corr_easy
+        # Rename channel_divergence to channel_corr_easy
         assert len(df) == 1, (
-            f"df should have only one row, but has {len(df)} rows. df: {df}"
+            f'df should have only one row, but has {len(df)} rows. df: {df}'
         )
         if df['instance'].iloc[0] == 'channel_divergence':
             df['instance'] = 'channel_corr_easy'
@@ -867,28 +999,25 @@ def main():
         if df['instance'].iloc[0] == 'channel_corr':
             df['instance'] = 'channel_corr_hard'
 
-
         # If identifier baseline_native_tool_calling and model is gpt-o4-mini or gpt-41 then set it to baseline
         if df['identifier_experiment'].iloc[0] == 'baseline_native_tool_calling' and df[
             'llm_config'
         ].iloc[0] in ['gpt-o4-mini', 'gpt-41']:
             df['identifier_experiment'] = 'baseline'
 
-        if "open_router_gemini_pro_pro" in df['llm_config'].iloc[0]:
+        if 'open_router_gemini_pro_pro' in df['llm_config'].iloc[0]:
             df['llm_config'] = 'gemini_pro_pro'
-        if "open_router_gemini_pro" in df['llm_config'].iloc[0]:
+        if 'open_router_gemini_pro' in df['llm_config'].iloc[0]:
             df['llm_config'] = 'gemini_pro'
-
 
         # If the first row’s llm_config contains any of those, drop all matching rows
         matches = [cfg for cfg in MODELS_TO_DROP if cfg in df['llm_config'].iloc[0]]
         if matches:
             df = df.loc[~df['llm_config'].isin(matches)]
 
-        assert (df['Acc100'] <= df['Acc99']).all(), ("The perfect accuracy should be less than or equal to the almost perfect accuracy")
-
-
-
+        assert (df['Acc100'] <= df['Acc99']).all(), (
+            'The perfect accuracy should be less than or equal to the almost perfect accuracy'
+        )
 
         # if folder_identifier == 1293:
         #     breakpoint()
@@ -899,9 +1028,7 @@ def main():
     all_results['is_read_csv_banned'].fillna(False, inplace=True)
     all_results['OneShotAcc'] = 0
     all_results['OneShotAcc'] = all_results.apply(
-        lambda x: 1
-        if x['Acc100'] == 1 and x['number_of_submissions'] == 1
-        else 0,
+        lambda x: 1 if x['Acc100'] == 1 and x['number_of_submissions'] == 1 else 0,
         axis=1,
     )
     all_results['is_time_series_task'] = all_results['instance'].apply(
@@ -917,9 +1044,11 @@ def main():
     # check when is the first submission made
 
     all_results['number_of_python_calls_when_right_at_first'] = all_results.apply(
-        lambda x: x['number_of_python_calls']
-        if x['Acc100'] == 1 and x['number_of_submissions'] == 1
-        else np.nan,
+        lambda x: (
+            x['number_of_python_calls']
+            if x['Acc100'] == 1 and x['number_of_submissions'] == 1
+            else np.nan
+        ),
         axis=1,
     )
 
@@ -939,7 +1068,6 @@ def main():
     ]
     all_results = all_results.loc[~all_results['error'].isin(to_drop_errors)]
 
-
     all_results.drop(
         [
             'eval_output_dir',
@@ -952,13 +1080,13 @@ def main():
             'class_type',
             'template_text',
             'enable_browsing_for_pictures',
-            'solution_iterations',
+            # 'solution_iterations',
             'constraints',
             'hints',
             'cheating_attempt',
             'warm_against_cheating',
             'prompt_variation',
-            'show_solution_iterations',
+            # 'show_solution_iterations',
             'show_max_budget_per_task',
             'keep_going_until_succeed',
             'include_constraints',
@@ -980,12 +1108,12 @@ def main():
     ]
 
     assert (all_results['llm_config'].isin(VALID_MODELS)).all(), (
-        "The following models are not in the list of valid models: "
-        f"{all_results['llm_config'][~all_results['llm_config'].isin(VALID_MODELS)].unique()}"
+        'The following models are not in the list of valid models: '
+        f'{all_results["llm_config"][~all_results["llm_config"].isin(VALID_MODELS)].unique()}'
     )
-    assertion_mask = (all_results['identifier_experiment'].isin(["baseline_native_tool_calling"])) & (
-        all_results['llm_config'].isin(['gpt-o4-mini', 'gpt-41'])
-    )
+    assertion_mask = (
+        all_results['identifier_experiment'].isin(['baseline_native_tool_calling'])
+    ) & (all_results['llm_config'].isin(['gpt-o4-mini', 'gpt-41']))
 
     assert not assertion_mask.any(), (
         "There are runs with identifier_experiment 'baseline_native_tool_calling' and llm_config 'gpt-o4-mini' or 'gpt-41'. They should be 'baseline'."
@@ -993,9 +1121,10 @@ def main():
     all_results_mask = (all_results['identifier_experiment'].isin(identifiers)) & (
         all_results['instance'].isin(TASKS)
     )
-    paper_results = all_results.loc[
-        all_results_mask
-    ]
+
+    # breakpoint()
+
+    paper_results = all_results.loc[all_results_mask]
     # ]
     paper_results = paper_results[
         ['error', 'best_metric']
@@ -1003,12 +1132,13 @@ def main():
     ]
 
     models = [
-        'gpt-o4-mini',
-        'gemini_pro',
-        'gemini_pro_pro',
-        'open_router_claude',
-        'deepseek',
-        'gpt-41',
+        'gemini-flash-preview-05-20'
+        # 'gpt-o4-mini',
+        # 'gemini_pro',
+        # 'gemini_pro_pro',
+        # 'open_router_claude',
+        # 'deepseek',
+        # 'gpt-41',
     ]
     # Keep only max_budget_per_task == 1 for gpt-o4-mini, gemini_pro_pro and open_router_claude
     paper_results = paper_results.loc[
@@ -1030,10 +1160,10 @@ def main():
         )
     ]
 
-
     # paper_results = pd.concat([to_be_replaced, to_be_added], ignore_index=True)
     paper_results.loc[
-        (paper_results['llm_config'] == 'gpt-41') & (paper_results['max_budget_per_task'] > 0.2)
+        (paper_results['llm_config'] == 'gpt-41')
+        & (paper_results['max_budget_per_task'] > 0.2)
     ]
 
     # Remove from baseline any run with is_plotting_enabled == False
@@ -1050,10 +1180,11 @@ def main():
         )
     ]
 
-
     for identifier in identifiers:
         for model in models + ['llama']:
             for instance in TASKS:
+                # breakpoint()
+
                 mask = (
                     (paper_results['llm_config'] == model)
                     & (paper_results['identifier_experiment'] == identifier)
@@ -1061,23 +1192,18 @@ def main():
                 )
                 other_runs = paper_results.loc[mask]
                 # Compute perfect_accuracy_all_the_time
-                is_always_perfect = other_runs['Acc100'].sum() == len(
-                    other_runs
-                )
+                is_always_perfect = other_runs['Acc100'].sum() == len(other_runs)
 
                 # Compute almost_perfect_accuracy_all_the_time
-                is_always_almost_perfect = other_runs[
-                    'Acc99'
-                ].sum() == len(other_runs)
+                is_always_almost_perfect = other_runs['Acc99'].sum() == len(other_runs)
                 is_anything_perfect = other_runs['Acc100'].sum() > 0
-                is_anything_almost_perfect = (
-                    other_runs['Acc99'].sum() > 0
-                )
-                is_anything_perfect_at_first = (
-                    other_runs['OneShotAcc'].sum() > 0
-                )
+                is_anything_almost_perfect = other_runs['Acc99'].sum() > 0
+                is_anything_perfect_at_first = other_runs['OneShotAcc'].sum() > 0
                 # Check if there is at least one perfect accuracy
                 # Add this back to the dataframe
+
+                # breakpoint()
+
                 paper_results.loc[mask, 'perfect_accuracy_all_the_time'] = (
                     1 if is_always_perfect else 0
                 )
@@ -1094,15 +1220,27 @@ def main():
                     1 if is_anything_perfect_at_first else 0
                 )
 
-    df_to_assert = paper_results.fillna({
-    "perfect_accuracy_all_the_time": 0,
-    'Acc100': 1,          # or whatever makes sense
-    "almost_perfect_accuracy_all_the_time": 0,
-    'Acc99': 1
-})
+    df_to_assert = paper_results.fillna(
+        {
+            'perfect_accuracy_all_the_time': 0,
+            'Acc100': 1,  # or whatever makes sense
+            'almost_perfect_accuracy_all_the_time': 0,
+            'Acc99': 1,
+        }
+    )
 
-    assert (df_to_assert["perfect_accuracy_all_the_time"] <= df_to_assert['Acc100']).all(), (f"The always perfect accuracy should be less than or equal to the perfect accuracy, found: {df_to_assert[df_to_assert['perfect_accuracy_all_the_time'] > df_to_assert['Acc100']]}")
-    assert (df_to_assert["almost_perfect_accuracy_all_the_time"] <= df_to_assert['Acc99']).all(), ("The always perfect accuracy should be less than or equal to the perfect accuracy")
+    assert (
+        df_to_assert['perfect_accuracy_all_the_time'] <= df_to_assert['Acc100']
+    ).all(), (
+        f'The always perfect accuracy should be less than or equal to the perfect accuracy, found: {df_to_assert[df_to_assert["perfect_accuracy_all_the_time"] > df_to_assert["Acc100"]]}'
+    )
+    assert (
+        df_to_assert['almost_perfect_accuracy_all_the_time'] <= df_to_assert['Acc99']
+    ).all(), (
+        'The always perfect accuracy should be less than or equal to the perfect accuracy'
+    )
+
+    # breakpoint()
 
     # other_runs.loc[other_runs['instance'].isin(['row_max_abs','spike_presence'])]
     if CHECKING_MISSING_ENTRIES:
@@ -1142,7 +1280,7 @@ def main():
     def group_table(
         df: pd.DataFrame,
         identifier_experiment: str,
-        models: List[str],
+        models: list[str],
         group_by_is_time_series_task: bool = True,
     ) -> pd.DataFrame:
         """
@@ -1204,29 +1342,21 @@ def main():
                     'is_plotting_enabled': name[0],
                     'is_time_series_task': name[1],
                     'llm_config': NAMING_MAP[llm_name],
-                    'mean_perfect_accuracy': group_df['Acc100']
-                    .fillna(0)
-                    .mean(),
-                    'mean_Acc99': group_df[
-                        'Acc99'
-                    ].mean(),
+                    'mean_perfect_accuracy': group_df['Acc100'].fillna(0).mean(),
+                    'mean_Acc99': group_df['Acc99'].mean(),
                     'mean_perfect_accuracy_all_the_time': group_df[
                         'perfect_accuracy_all_the_time'
                     ].mean(),
                     'mean_Acc99_all_the_time': group_df[
                         'almost_perfect_accuracy_all_the_time'
                     ].mean(),
-                    'mean_anything_at_first_perfect': group_df[
-                        'Acc100'
-                    ].mean(),
+                    'mean_anything_at_first_perfect': group_df['Acc100'].mean(),
                     'mean_anything_perfect': group_df['is_anything_perfect'].mean(),
                     'mean_anything_almost_perfect': group_df[
                         'is_anything_almost_perfect'
                     ].mean(),
                     'variance_perfect_accuracy': group_df['Acc100'].var(),
-                    'variance_almost_perfect_accuracy': group_df[
-                        'Acc99'
-                    ].var(),
+                    'variance_almost_perfect_accuracy': group_df['Acc99'].var(),
                     'variance_perfect_accuracy_all_the_time': group_df[
                         'perfect_accuracy_all_the_time'
                     ].var(),
@@ -1236,9 +1366,7 @@ def main():
                     'number_of_submissions': group_df['number_of_submissions'].mean(),
                     'count': number_of_rows,
                     'metrics': group_df['metric'].tolist(),
-                    'OneShotAcc': group_df[
-                        'OneShotAcc'
-                    ].mean(),
+                    'OneShotAcc': group_df['OneShotAcc'].mean(),
                     # 'number_of_api_calls_when_right': group_df['number_of_api_calls_when_right'].mean(),
                     'cost_when_right': group_df['cost_when_right'].mean(),
                     'number_of_submissions_when_right': group_df[
@@ -1275,8 +1403,8 @@ def main():
 
     def table_2(
         df,
-        models: List[str],
-        identifier_considered: Optional[List[str]] = None,
+        models: list[str],
+        identifier_considered: Optional[list[str]] = None,
     ):
         """ """
         if identifier_considered is None:
@@ -1300,19 +1428,19 @@ def main():
 
     # A run is invalid if it's marked as cheating **and** also marked as perfect or almost-perfect accuracy
     invalid = paper_results['is_cheating'] & (paper_results['Acc100'])
-    assert (
-        not invalid.any()
-    ), 'Some cheating runs are incorrectly marked as perfect or almost-perfect accuracy'
+    assert not invalid.any(), (
+        'Some cheating runs are incorrectly marked as perfect or almost-perfect accuracy'
+    )
 
     # ----------------------------------------------------------------------
     # Example usage
 
     def df_to_overleaf_table(
         df: pd.DataFrame,
-        value_col: str = "OneShotAcc_mean",
+        value_col: str = 'OneShotAcc_mean',
         caption: str | None = None,
         label: str | None = None,
-        fmt: str = "%.3f",
+        fmt: str = '%.3f',
     ) -> str:
         """
         Pivot `df` so rows are `instance`, columns are `llm_config`,
@@ -1334,35 +1462,27 @@ def main():
         # Replace llm_config with the name in the paper
         df['llm_config'] = df['llm_config'].replace(NAMING_MAP)
         # Rename "llm_config" to "Model"
-        df.rename(columns={"llm_config": "Model"}, inplace=True)
+        df.rename(columns={'llm_config': 'Model'}, inplace=True)
         # Replace _ with \_ in the instance names
-        df['instance']  = df['instance'].apply(
-            lambda x: x.replace('_', '\\_')
-        )
+        df['instance'] = df['instance'].apply(lambda x: x.replace('_', '\\_'))
         # Remap Claude 3.7 Sonnet to Sonnet 3.7
-        df['Model'] = df['Model'].replace(
-            {'Claude 3.7 Sonnet': 'Claude 3.7 Sonnet'}
-        )
+        df['Model'] = df['Model'].replace({'Claude 3.7 Sonnet': 'Claude 3.7 Sonnet'})
 
         # Remap DeepSeek R1 to R1
-        df['Model'] = df['Model'].replace(
-            {'DeepSeek R1': 'R1'}
-        )
-
+        df['Model'] = df['Model'].replace({'DeepSeek R1': 'R1'})
 
         tbl = (
-            df
-            .pivot(index="instance", columns="Model", values=value_col)
+            df.pivot(index='instance', columns='Model', values=value_col)
             .sort_index()
-            .loc[:, sorted(df["Model"].unique())]           # ordered columns
+            .loc[:, sorted(df['Model'].unique())]  # ordered columns
         )
 
         # --- render as LaTeX ---
         latex = tbl.to_latex(
-            na_rep="-",
-            escape=False,         # keep underscores in model names
+            na_rep='-',
+            escape=False,  # keep underscores in model names
             bold_rows=False,
-            column_format="l" + "c" * tbl.shape[1],  # 1 left + N centered cols
+            column_format='l' + 'c' * tbl.shape[1],  # 1 left + N centered cols
             float_format=lambda x: fmt % x,
             caption=caption,
             label=label,
@@ -1371,54 +1491,55 @@ def main():
 
     def group_by_model_and_instance(
         df: pd.DataFrame,
-        models: Optional[List[str]] = None,
+        models: Optional[list[str]] = None,
         identifier_experiment: Optional[str] = None,
-        population_var: bool = True,        # ddof = 0 instead of 1 → avoids NaN for n=1
+        population_var: bool = True,  # ddof = 0 instead of 1 → avoids NaN for n=1
         max_seeds: Optional[int] = None,
-        ) -> pd.DataFrame:
+    ) -> pd.DataFrame:
         """
         Group the DataFrame by model and instance, and compute the mean and variance (Appendix A.1).
         """
         # --- filtering ----------------------------------------------------------
         if identifier_experiment is not None:
-            df = df.loc[df["identifier_experiment"] == identifier_experiment]
+            df = df.loc[df['identifier_experiment'] == identifier_experiment]
 
         if models is not None:
-            df = df.loc[df["llm_config"].isin(models)]
+            df = df.loc[df['llm_config'].isin(models)]
 
         if max_seeds is not None:
             # For each llm_config and instance, keep only the last max_seeds rows
             df = (
-                df.groupby(["llm_config", "instance"])
+                df.groupby(['llm_config', 'instance'])
                 .apply(lambda x: x.tail(max_seeds))
                 .reset_index(drop=True)
             )
 
-
         # --- aggregation helpers -----------------------------------------------
-        ddof = 0 if population_var else 1              # choose population or sample var
-        var = lambda s: s.var(ddof=ddof)               # noqa: E731  (tiny helper)
+        ddof = 0 if population_var else 1  # choose population or sample var
+        lambda s: s.var(ddof=ddof)  # noqa: E731  (tiny helper)
 
         grouped = (
-            df.groupby(["llm_config", "instance"])
+            df.groupby(['llm_config', 'instance'])
             .agg(
-                OneShotAcc_mean = ("OneShotAcc", "mean"),
-                Acc100_mean     = ("Acc100",    "mean"),
-                Acc99_mean      = ("Acc99",     "mean"),
-                n               = ("seed",      "count"),
+                OneShotAcc_mean=('OneShotAcc', 'mean'),
+                Acc100_mean=('Acc100', 'mean'),
+                Acc99_mean=('Acc99', 'mean'),
+                # n=("seed", "count"),
             )
             .reset_index()
         )
 
         latex_code = df_to_overleaf_table(
             grouped,
-            value_col="OneShotAcc_mean",
-            caption="Instance-level accuracy (one-shot)",
-            label="tab:instance_accuracy",
-            fmt="%.2f",
+            value_col='OneShotAcc_mean',
+            caption='Instance-level accuracy (one-shot)',
+            label='tab:instance_accuracy',
+            fmt='%.2f',
         )
 
         return grouped, latex_code
+
+    # breakpoint()
 
     models = [x for x in models if x != 'deepseek']
     entry_with, _ = group_by_model_and_instance(
@@ -1438,17 +1559,24 @@ def main():
     # Round everything to 2 decimal places
     entry_with = entry_with.round(2)
     entry_without = entry_without.round(2)
-    latex_table_final_oneshot = make_overleaf_table(entry_with=entry_with, entry_without=entry_without, metric="OneShotAcc_mean")
-    latex_table_final_acc100 = make_overleaf_table(entry_with=entry_with, entry_without=entry_without, metric="Acc100_mean")
-    latex_table_final_acc99 = make_overleaf_table(entry_with=entry_with, entry_without=entry_without, metric="Acc99_mean")
+    make_overleaf_table(
+        entry_with=entry_with, entry_without=entry_without, metric='OneShotAcc_mean'
+    )
+    make_overleaf_table(
+        entry_with=entry_with, entry_without=entry_without, metric='Acc100_mean'
+    )
+    make_overleaf_table(
+        entry_with=entry_with, entry_without=entry_without, metric='Acc99_mean'
+    )
 
-    deep_seek_output = paper_results.loc[paper_results['llm_config'] == 'deepseek']
+    paper_results.loc[paper_results['llm_config'] == 'deepseek']
 
     entry = group_table(
         paper_results,
         identifier_experiment='baseline',
         models=[x for x in models if x != 'deepseek'],
     )
+
     filled_1 = create_accuracy(
         entry,
         important_columns=[
@@ -1463,6 +1591,7 @@ def main():
         identifier_experiment='plot_disabled',
         models=[x for x in models if x != 'deepseek'],
     )
+
     filled_plots = create_accuracy(
         entry_plots,
         important_columns=[
@@ -1472,7 +1601,6 @@ def main():
         ],
     )
     print(filled_plots)
-    breakpoint()
     latex_code = fill_costs_pycalls_table(entry)  # entry = your DataFrame
     print(latex_code)
     filled_2 = create_accuracy(
