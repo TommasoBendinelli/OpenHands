@@ -120,6 +120,7 @@ def patch_run_infer(path: Path) -> str:
 @pytest.mark.parametrize(
     'llm_config',
     [
+        'gemini-flash',
         'gpt-o4-mini',
     ],
 )
@@ -183,7 +184,6 @@ def test_plot_description_end_to_end(llm_config):
         data = json.loads(f.readline())
 
     history = data.get('history', [])
-    assert any(
-        'Reading image file from plot.png' in (entry.get('message') or '')
-        for entry in history
-    )
+    assert any('hands' in (entry.get('message') or '') for entry in history)
+
+    assert any('yellow' in (entry.get('message') or '') for entry in history)
