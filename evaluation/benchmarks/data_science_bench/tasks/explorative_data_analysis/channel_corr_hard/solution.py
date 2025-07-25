@@ -32,7 +32,7 @@ def abs_channel_correlation(df: pd.DataFrame) -> np.ndarray:
 
     # Pearson numerator & denominator
     numer = (ch1_c * ch2_c).sum(axis=1)
-    denom = np.sqrt((ch1_c ** 2).sum(axis=1) * (ch2_c ** 2).sum(axis=1)) + 1e-12
+    denom = np.sqrt((ch1_c**2).sum(axis=1) * (ch2_c**2).sum(axis=1)) + 1e-12
     return np.abs(numer / denom)
 
 
@@ -40,10 +40,10 @@ def main() -> None:
     root = Path(__file__).resolve().parent
 
     # Load data
-    X_train = pd.read_csv(root / "train.csv")
-    y_train = pd.read_csv(root / "train_labels.csv").label.values
-    X_test = pd.read_csv(root / "test.csv")
-    y_test = pd.read_csv(root / "test_gt.csv").label.values
+    X_train = pd.read_csv(root / 'train.csv')
+    y_train = pd.read_csv(root / 'train_labels.csv').label.values
+    X_test = pd.read_csv(root / 'test.csv')
+    y_test = pd.read_csv(root / 'test_gt.csv').label.values
 
     # Feature extraction
     f_train = abs_channel_correlation(X_train).reshape(-1, 1)
@@ -54,11 +54,11 @@ def main() -> None:
     clf.fit(f_train, y_train)
 
     # Get the decision threshold
-    threshold = clf.tree_.threshold[0]
+    clf.tree_.threshold[0]
     y_pred = clf.predict(f_test)
     acc = accuracy_score(y_test, y_pred)
-    print(f"Test accuracy: {acc:.2%}")
+    print(f'Test accuracy: {acc:.2%}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

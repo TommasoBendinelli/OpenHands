@@ -64,7 +64,7 @@ def make_group(label: int, colour: str, gid: str) -> list[list]:
 
 def build_split(n_groups: int, confound: bool) -> pd.DataFrame:
     """
-    If confound=True  →  colour correlates 99 % with the label.
+    If confound=True  →  colour correlates 100 % with the label.
     If confound=False →  colour is 50/50 regardless of label.
     """
     rows, used = [], set()

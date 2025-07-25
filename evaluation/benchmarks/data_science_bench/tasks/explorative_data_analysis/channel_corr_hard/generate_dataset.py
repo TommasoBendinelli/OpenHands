@@ -12,16 +12,6 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils import save_datasets  # noqa: E402
 
 
-def channels_correlated(x_flat: np.ndarray, length: int, thresh: float = 0.6) -> int:
-    """
-    Return 0 if |corr| between the two channels > thresh, else 1.
-    (Kept for backward compatibility / sanity checks.)
-    """
-    ch1, ch2 = x_flat[:length], x_flat[length:]
-    r = np.corrcoef(ch1, ch2)[0, 1]
-    return 0 if abs(r) > thresh else 1
-
-
 # --------------------------------------------------------------------------- #
 #                           DATA-SET GENERATION                               #
 # --------------------------------------------------------------------------- #

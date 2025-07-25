@@ -4,7 +4,7 @@ models=gemini-flash-preview-05-20
 
 ## 4.2.1 Baseline Results
 
-python evaluation/benchmarks/data_science_bench/run_infer.py \
+python -m evaluation.benchmarks.data_science_bench.run_infer \
   number_of_experiments=1 \
   eval_n_limit=1 \
   class_type=explorative_data_analysis \
@@ -27,7 +27,7 @@ python evaluation/benchmarks/data_science_bench/run_infer.py \
 
 ## 4.4 Impact of Plot Generation on Performance
 
-python evaluation/benchmarks/data_science_bench/run_infer.py \
+python -m evaluation.benchmarks.data_science_bench.run_infer \
   number_of_experiments=1 \
   eval_n_limit=1 \
   class_type=explorative_data_analysis \

@@ -29,7 +29,6 @@ from openhands.core.config import (
 from openhands.core.logger import openhands_logger as logger
 from openhands.core.main import create_runtime, run_controller
 from openhands.events.action import CmdRunAction, MessageAction
-from openhands.events.action.commands import IPythonRunCellAction
 from openhands.events.observation import CmdOutputObservation
 
 # remove when it becomes unnecessary
@@ -47,6 +46,7 @@ AGENT_CLS_TO_FAKE_USER_RESPONSE_FN = {
 }
 
 LOCAL_DATASET_PATH = os.path.join(os.path.dirname(__file__), 'benchmark')
+SUBMISSION_FILE = 'compute_metric.py'
 
 
 def format_task_dict(example, use_knowledge):
@@ -196,13 +196,13 @@ def initialize_runtime(
         runtime.copy_to(path, '/mnt')
         # Access the file and change the line RUN_COUNTER_LIMIT = 10**12 to RUN_COUNTER_LIMIT = cfg.run_counter_limit
 
-        path = base_path.parent / 'compute_metric.py'
+        path = base_path.parent / SUBMISSION_FILE
         runtime.copy_to(path, '/mnt')
         runtime.run(
             CmdRunAction(
                 command=(
                     f"sed -i 's|RUN_COUNTER_LIMIT = .*|RUN_COUNTER_LIMIT = {cfg.feedback_iterations}|' "
-                    '/mnt/compute_metric.py'
+                    f'/mnt/{SUBMISSION_FILE}'
                 )
             )
         )
@@ -453,8 +453,6 @@ def process_instance(
             ),
         )
     )
-
-    [code.code for code in state.history if isinstance(code, IPythonRunCellAction)]
 
     if instance['class_type'] == 'data_inputation':
         res = runtime.run_action(

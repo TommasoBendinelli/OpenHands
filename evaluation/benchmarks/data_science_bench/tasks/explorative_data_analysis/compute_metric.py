@@ -8,7 +8,7 @@ RUN_COUNTER_FILE = Path('run_counter.txt')
 RUN_COUNTER_LIMIT = 20  # safeguard against accidental infinite loops
 
 
-def _update_run_counter(
+def _get_current_run_counter(
     path: Path = RUN_COUNTER_FILE, limit: int = RUN_COUNTER_LIMIT
 ) -> tuple[int, int]:
     """Increment the run counter and enforce an upper bound.
@@ -28,8 +28,11 @@ def _update_run_counter(
             ),
         )
     current += 1
-    path.write_text(str(current))
     return current, ''
+
+
+def _update_run_counter(current: int, path: Path = RUN_COUNTER_FILE) -> None:
+    path.write_text(str(current))
 
 
 def parse_submission_file(path: Path, df: pd.DataFrame) -> pd.Series:
@@ -114,7 +117,7 @@ def do_submission():
 
 
 def main():
-    current, msg = _update_run_counter()
+    current, msg = _get_current_run_counter()
     if msg:
         print(msg)
         return -1
@@ -137,6 +140,8 @@ def main():
     if accuracy_test == 1:
         print('Congratulations! You have reached the accuracy threshold of 1.0.')
         print('Please return to the user')
+
+    _update_run_counter(current, RUN_COUNTER_FILE)
 
 
 if __name__ == '__main__':

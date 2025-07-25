@@ -17,11 +17,6 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils import save_datasets  # noqa: E402
 
 
-def feature3_is_max(row: np.ndarray) -> int:
-    """Return 1 if feat3 is strictly greater than feat1 and feat2."""
-    return int(row[2] > max(row[0], row[1]))
-
-
 def generate_sample(f3max: bool, n_feats: int = 6):
     """
     Draw first three features so that feat3 is (or isn't) the max.

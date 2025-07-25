@@ -7,22 +7,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.signal import periodogram
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils import save_datasets  # noqa: E402
-
-
-def same_dominant_freq(
-    x_flat: np.ndarray, length: int, fs: float = 1.0, tol: float = 0.01
-) -> int:
-    """
-    Compare dominant frequency of two channels via periodogram.
-    """
-    ch1, ch2 = x_flat[:length], x_flat[length:]
-    f1 = periodogram(ch1, fs=fs)[0][np.argmax(periodogram(ch1, fs=fs)[1])]
-    f2 = periodogram(ch2, fs=fs)[0][np.argmax(periodogram(ch2, fs=fs)[1])]
-    return 0 if abs(f1 - f2) < tol else 1
 
 
 def generate_sample(common_freq: bool, length: int = 512, fs: float = 1.0):

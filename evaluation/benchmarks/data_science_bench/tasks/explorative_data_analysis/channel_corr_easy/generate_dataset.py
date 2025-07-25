@@ -13,17 +13,6 @@ import random
 from utils import save_datasets  # noqa: E402
 
 
-def diverging(x_flat: np.ndarray, length: int, slope_thresh: float = 0.01) -> int:
-    """
-    Fit a line to |ch1 - ch2|; if slope > thresh ⇒ divergent (label 1) else 0.
-    """
-    ch1, ch2 = x_flat[:length], x_flat[length:]
-    gap = np.abs(ch1 - ch2)
-    t = np.arange(length)
-    m = np.polyfit(t, gap, 1)[0]
-    return 1 if m > slope_thresh else 0
-
-
 def generate_sample(corr: bool, length: int = 300, noise: float = 0.4):
     """
     Two-channel series: either highly correlated or independent.
