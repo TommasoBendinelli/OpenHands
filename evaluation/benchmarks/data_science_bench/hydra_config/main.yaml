@@ -36,7 +36,7 @@ give_structure_hint: False
 is_explaination_and_intepretation_included: false
 only_plots: false
 identifier_experiment: propotypying
-replay_trajectory_path: '/home/tommaso/repo/trajectories' # If empty, do not replay any trajectory
+replay_trajectory_path: '' # If empty, do not replay any trajectory
 # Inject current date and time as YYYY-MM-DD_HH-MM-SS
 timestamp: ${now:%Y-%m-%d_%H-%M-%S}
 # timestamp: ${now:%Y-%m-%d}

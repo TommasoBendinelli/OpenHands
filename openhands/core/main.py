@@ -148,6 +148,7 @@ async def run_controller(
     replay_events: list[Event] | None = None
     if config.replay_trajectory_path:
         logger.info('Trajectory replay is enabled')
+        # breakpoint()
         assert isinstance(initial_user_action, NullAction)
         replay_events, initial_user_action = load_replay_log(
             config.replay_trajectory_path
@@ -268,7 +269,9 @@ def load_replay_log(trajectory_path: str) -> tuple[list[Event] | None, Action]:
             raise ValueError(f'Trajectory path is a directory, not a file: {path}')
 
         with open(path, 'r', encoding='utf-8') as file:
-            events = ReplayManager.get_replay_events(json.load(file))
+            output_saved = json.load(file)  # TODO Clean this up
+            trajectory = output_saved['history']  # TODO Clean this up
+            events = ReplayManager.get_replay_events(trajectory)  # TODO Clean this up
             assert isinstance(events[0], MessageAction)
             return events[1:], events[0]
     except json.JSONDecodeError as e:

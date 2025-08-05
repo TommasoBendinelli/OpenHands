@@ -29,6 +29,7 @@ from openhands.core.config import (
 from openhands.core.logger import openhands_logger as logger
 from openhands.core.main import create_runtime, run_controller
 from openhands.events.action import CmdRunAction, MessageAction
+from openhands.events.action.empty import NullAction
 from openhands.events.observation import CmdOutputObservation
 
 # remove when it becomes unnecessary
@@ -46,6 +47,16 @@ AGENT_CLS_TO_FAKE_USER_RESPONSE_FN = {
 
 LOCAL_DATASET_PATH = os.path.join(os.path.dirname(__file__), 'benchmark')
 SUBMISSION_FILE = 'compute_metric.py'
+
+
+# Read the env var (returns None if unset)
+wait_flag = os.getenv('WAIT_FOR_DEBUGGER')
+if wait_flag == '1':
+    import debugpy
+
+    debugpy.listen(('localhost', 5678))
+    debugpy.wait_for_client()
+    print('Debugger attached, continuing…')
 
 
 def format_task_dict(example, use_knowledge):
@@ -436,16 +447,20 @@ def process_instance(
 
     # Overwrite max_interactions
     config.max_iterations = cfg.max_iterations
+    config.replay_trajectory_path = cfg.replay_trajectory_path
     runtime = create_runtime(config, sid=sid)
 
     call_async_from_sync(runtime.connect)
     initialize_runtime(runtime, instance, cfg=cfg)
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
-
+    if cfg.replay_trajectory_path:
+        initial_user_action = NullAction()
+    else:
+        initial_user_action = MessageAction(content=instruction)
     state: State | None = asyncio.run(
         run_controller(
             config=config,
-            initial_user_action=MessageAction(content=instruction),
+            initial_user_action=initial_user_action,
             runtime=runtime,
             fake_user_response_fn=AGENT_CLS_TO_FAKE_USER_RESPONSE_FN.get(
                 metadata.agent_class
