@@ -1,7 +1,9 @@
 import copy
+import json
 import os
 from collections import deque
 from functools import partial
+from pathlib import Path
 
 import pandas as pd
 from litellm import ChatCompletionToolParam
@@ -20,6 +22,7 @@ from openhands.agenthub.data_science_agent.tools.bash import create_cmd_run_tool
 from openhands.agenthub.data_science_agent.tools.finish import FinishTool
 from openhands.agenthub.data_science_agent.tools.ipython import IPythonTool
 from openhands.controller.agent import Agent
+from openhands.controller.replay import ReplayManager
 from openhands.controller.state.state import State
 from openhands.core.config import AgentConfig
 from openhands.core.logger import openhands_logger as logger
@@ -343,6 +346,65 @@ class DataScienceBenchAgent(Agent):
                         # message['content'][0]['text'] = "Raw numbers of the dataset not available. Report this to the user and keep going."
                         break
 
+        def load_replay_log(trajectory_path: str) -> tuple[list[Event] | None, Action]:
+            """
+            Load trajectory from given path, serialize it to a list of events, and return
+            two things:
+            1) A list of events except the first action
+            2) First action (user message, a.k.a. initial task)
+            """
+            try:
+                path = Path(trajectory_path).resolve()
+
+                if not path.exists():
+                    raise ValueError(f'Trajectory file not found: {path}')
+
+                if not path.is_file():
+                    raise ValueError(
+                        f'Trajectory path is a directory, not a file: {path}'
+                    )
+
+                with open(path, 'r', encoding='utf-8') as file:
+                    output_saved = json.load(file)  # TODO Clean this up
+                    trajectory = output_saved['history']  # TODO Clean this up
+                    events = ReplayManager.get_replay_events(
+                        trajectory
+                    )  # TODO Clean this up
+                    assert isinstance(events[0], MessageAction)
+                    return events[1:], events[0]
+            except json.JSONDecodeError as e:
+                raise ValueError(f'Invalid JSON format in {trajectory_path}: {e}')
+
+        # if self.cfg.restore_trajectory_path:
+        #     logger.info('Trajectory restoring is enabled')
+
+        #     replay_events, initial_user_action = load_replay_log(
+        #         self.cfg.restore_trajectory_path
+        #     )
+        # state.history items are of type SystemMessageAction, MessageAction, RecallAction, RecallObservation
+        # restored_history = replay_events
+        # replay_events.insert(0, initial_user_action)
+        # state.history = restored_history
+
+        # breakpoint()
+
+        # First iteration:
+        # state.history[0] -> SystemMessageAction(content='You are OpenHands agent, a helpful AI..)
+        # state.history[1] -> MessageAction(content='As a data specialist, your role is to examine the provided dataset...)
+        # state.history[2] -> RecallAction(recall_type=<RecallType.WORKSPACE_CONTEXT: 'workspace_context'>, query='As a data specialist...)
+        # state.history[3] -> RecallObservation(content='Added workspace context', recall_type=<RecallType.WORKSPACE_CONTEXT: 'workspace_context'>
+        # breakpoint()
+
+        ## TODO: Remove this
+        # import copy
+        # old_params = copy.deepcopy(params)
+        # old_params["messages"] = old_params["messages"][-2:]
+        # old_params["messages"][-1]["content"][0]["text"] = "hello"
+        # old_params["messages"][0]["tool_calls"][0]["function"]["arguments"] = "hello"
+        # # old_params["messages"] = [ old_params["messages"][-2]]
+        # self.llm.completion(**old_params)
+        # ##
+
         response = self.llm.completion(**params)
 
         logger.debug(f'Response from LLM: {response}')
@@ -356,6 +418,7 @@ class DataScienceBenchAgent(Agent):
         next_action = self.pending_actions.popleft()
         if self._uses_sklearn(next_action):
             raise RuntimeError('Scikit-learn usage is not allowed in this agent.')
+
         return next_action
 
     def _get_initial_user_message(self, history: list[Event]) -> MessageAction:

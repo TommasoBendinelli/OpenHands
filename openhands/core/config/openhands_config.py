@@ -39,6 +39,7 @@ class OpenHandsConfig(BaseModel):
         save_trajectory_path: Either a folder path to store trajectories with auto-generated filenames, or a designated trajectory file path.
         save_screenshots_in_trajectory: Whether to save screenshots in trajectory (in encoded image format).
         replay_trajectory_path: Path to load trajectory and replay. If provided, trajectory would be replayed first before user's instruction.
+        restore_trajectory_path: Path to a previously saved trajectory file. The agent will load and resume from this trajectory as the initial state, treating it as historical context provided in the first user message.
         search_api_key: API key for Tavily search engine (https://tavily.com/).
         workspace_base (deprecated): Base path for the workspace. Defaults to `./workspace` as absolute path.
         workspace_mount_path (deprecated): Path to mount the workspace. Defaults to `workspace_base`.
@@ -74,6 +75,7 @@ class OpenHandsConfig(BaseModel):
     save_trajectory_path: str | None = Field(default=None)
     save_screenshots_in_trajectory: bool = Field(default=False)
     replay_trajectory_path: str | None = Field(default=None)
+    restore_trajectory_path: str | None = Field(default=None)
     search_api_key: SecretStr | None = Field(
         default=None,
         description='API key for Tavily search engine (https://tavily.com/). Required for search functionality.',

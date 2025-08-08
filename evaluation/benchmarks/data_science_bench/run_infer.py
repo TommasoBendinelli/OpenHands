@@ -448,15 +448,18 @@ def process_instance(
     # Overwrite max_interactions
     config.max_iterations = cfg.max_iterations
     config.replay_trajectory_path = cfg.replay_trajectory_path
-    runtime = create_runtime(config, sid=sid)
+    config.restore_trajectory_path = cfg.restore_trajectory_path
 
+    runtime = create_runtime(config, sid=sid)
     call_async_from_sync(runtime.connect)
     initialize_runtime(runtime, instance, cfg=cfg)
+
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
     if cfg.replay_trajectory_path:
         initial_user_action = NullAction()
     else:
         initial_user_action = MessageAction(content=instruction)
+
     state: State | None = asyncio.run(
         run_controller(
             config=config,
