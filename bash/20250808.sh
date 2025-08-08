@@ -1,6 +1,6 @@
 instance=cofounded_group_outlier
 
-models=open_router_claude
+models=gemini-pro #open_router_claude
 
 #openrouter-gemini-pro-preview
 
