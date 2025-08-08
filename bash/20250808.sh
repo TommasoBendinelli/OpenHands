@@ -26,3 +26,4 @@ python -m evaluation.benchmarks.data_science_bench.run_infer \
   disable_numbers=False \
   is_read_csv_banned=False \
   identifier_experiment="baseline" \
+  replay_trajectory_path="" \
