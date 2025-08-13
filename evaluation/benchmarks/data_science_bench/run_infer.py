@@ -425,15 +425,15 @@ def process_instance(
         instruction += f'You have up to {cfg.max_iterations} max interaction with the data to solve the task. \n'
 
     if cfg.warm_against_cheating:
-        assert (
-            cfg.cheating_attempt
-        ), 'This option is only available when cheating is enabled'
+        assert cfg.cheating_attempt, (
+            'This option is only available when cheating is enabled'
+        )
         instruction += "You can't look at y_test.csv or any other file that contains the y ground truth. But you can look at test.csv.\n"
 
     if cfg.only_plots and cfg.is_plotting_enabled:
-        assert (
-            cfg.is_plotting_enabled
-        ), 'This option is only available when plotting is enabled'
+        assert cfg.is_plotting_enabled, (
+            'This option is only available when plotting is enabled'
+        )
         instruction += "In order to solve the task, you can only use plots. You can't print anything, you can only only render plots. \n"
 
     if cfg.is_explaination_and_intepretation_included:

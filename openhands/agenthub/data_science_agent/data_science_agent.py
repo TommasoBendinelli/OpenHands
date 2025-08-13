@@ -338,9 +338,9 @@ class DataScienceBenchAgent(Agent):
                     if counter > 20:
                         if self.cfg and 'gemini' in self.cfg.llm_config:
                             # Replace the message with a placeholder
-                            message['content'][0][
-                                'text'
-                            ] = 'Raw numbers of the dataset not available. Report this error to the user and keep going.'
+                            message['content'][0]['text'] = (
+                                'Raw numbers of the dataset not available. Report this error to the user and keep going.'
+                            )
                         elif self.cfg and 'claude' in self.cfg.llm_config:
                             # Replace the message with a placeholder
                             message['content'] = (
@@ -409,16 +409,15 @@ class DataScienceBenchAgent(Agent):
                 self.old_params = params
         else:
             for key in self.old_params:
-
                 old_value = self.old_params[key]
                 new_value = params[key]
                 old_value_cropped = str(old_value)[:-1]
                 with open(
-                    f"restore_traj_old_params_{key}.txt", "w", encoding="utf-8"
+                    f'restore_traj_old_params_{key}.txt', 'w', encoding='utf-8'
                 ) as file:
                     file.write(old_value_cropped)
                 with open(
-                    f"restore_traj_params_{key}.txt", "w", encoding="utf-8"
+                    f'restore_traj_params_{key}.txt', 'w', encoding='utf-8'
                 ) as file:
                     file.write(str(new_value)[: len(old_value_cropped)])
 
