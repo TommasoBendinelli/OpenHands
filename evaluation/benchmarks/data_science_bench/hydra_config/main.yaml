@@ -25,7 +25,7 @@ include_constraints: False
 native_tool_calling: True
 instruction_constraint: ''
 is_sklearn_banned: True
-max_iterations: 30
+max_iterations: 50
 temperature: 0
 max_retries: 1
 top_p: 1
@@ -37,7 +37,7 @@ is_explaination_and_intepretation_included: false
 only_plots: false
 identifier_experiment: propotypying
 replay_trajectory_path: ''
-restore_trajectory_path: 'evaluation/evaluation_outputs/outputs/2025-07-30/2025-07-30_08-36-05_0/variance_burst/DataScienceBenchAgent/gemini-2.5-flash_maxiter_30_N_temp/output.jsonl'
+restore_trajectory_path: ''
 # Inject current date and time as YYYY-MM-DD_HH-MM-SS
 timestamp: ${now:%Y-%m-%d_%H-%M-%S}
 # timestamp: ${now:%Y-%m-%d}

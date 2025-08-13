@@ -107,6 +107,8 @@ class DataScienceBenchAgent(Agent):
             ds_function_calling.response_to_actions, cfg=self.cfg
         )
 
+        self.old_params = None
+
     def _get_tools(self) -> list[ChatCompletionToolParam]:
         # For these models, we use short tool descriptions ( < 1024 tokens)
         # to avoid hitting the OpenAI token limit for tool descriptions.
@@ -199,6 +201,7 @@ class DataScienceBenchAgent(Agent):
         - MessageAction(content) - Message action to run (e.g. ask for clarification)
         - AgentFinishAction() - end the interaction
         """
+        # breakpoint()
         # Continue with pending actions if any
         if self.pending_actions:
             next_action = self.pending_actions.popleft()
@@ -245,6 +248,7 @@ class DataScienceBenchAgent(Agent):
                     #     f.write(png.encode('utf-8'))
                     png = line.split('data:image/png;base64,')[1].split(')')[0]
                     pngs.append(png)
+
         initial_user_message = self._get_initial_user_message(state.history)
         messages = self._get_messages(condensed_history, initial_user_message)
         params: dict = {
@@ -334,9 +338,9 @@ class DataScienceBenchAgent(Agent):
                     if counter > 20:
                         if self.cfg and 'gemini' in self.cfg.llm_config:
                             # Replace the message with a placeholder
-                            message['content'][0]['text'] = (
-                                'Raw numbers of the dataset not available. Report this error to the user and keep going.'
-                            )
+                            message['content'][0][
+                                'text'
+                            ] = 'Raw numbers of the dataset not available. Report this error to the user and keep going.'
                         elif self.cfg and 'claude' in self.cfg.llm_config:
                             # Replace the message with a placeholder
                             message['content'] = (
@@ -371,39 +375,54 @@ class DataScienceBenchAgent(Agent):
                         trajectory
                     )  # TODO Clean this up
                     assert isinstance(events[0], MessageAction)
+                    # breakpoint()
                     return events[1:], events[0]
             except json.JSONDecodeError as e:
                 raise ValueError(f'Invalid JSON format in {trajectory_path}: {e}')
 
-        # if self.cfg.restore_trajectory_path:
-        #     logger.info('Trajectory restoring is enabled')
+        # First iteration: SystemMessageAction, MessageAction, RecallAction, RecallObservation
+        # Restore previous trajectory in the beginning
+        if self.old_params is None:
+            if self.cfg.restore_trajectory_path:
+                logger.info('Trajectory restoring is enabled')
 
-        #     replay_events, initial_user_action = load_replay_log(
-        #         self.cfg.restore_trajectory_path
-        #     )
-        # state.history items are of type SystemMessageAction, MessageAction, RecallAction, RecallObservation
-        # restored_history = replay_events
-        # replay_events.insert(0, initial_user_action)
-        # state.history = restored_history
+                replay_events, initial_user_action = load_replay_log(
+                    self.cfg.restore_trajectory_path
+                )
 
-        # breakpoint()
+                restored_history = replay_events
+                state.history = restored_history
 
-        # First iteration:
-        # state.history[0] -> SystemMessageAction(content='You are OpenHands agent, a helpful AI..)
-        # state.history[1] -> MessageAction(content='As a data specialist, your role is to examine the provided dataset...)
-        # state.history[2] -> RecallAction(recall_type=<RecallType.WORKSPACE_CONTEXT: 'workspace_context'>, query='As a data specialist...)
-        # state.history[3] -> RecallObservation(content='Added workspace context', recall_type=<RecallType.WORKSPACE_CONTEXT: 'workspace_context'>
-        # breakpoint()
+                replay_events.insert(
+                    0, initial_user_action
+                )  # Replay events does not include the first action we need to add it again
+                restored_messages = self._get_messages(
+                    replay_events, initial_user_message
+                )
+                params['messages'] = self.llm.format_messages_for_llm(restored_messages)
 
-        ## TODO: Remove this
-        # import copy
-        # old_params = copy.deepcopy(params)
-        # old_params["messages"] = old_params["messages"][-2:]
-        # old_params["messages"][-1]["content"][0]["text"] = "hello"
-        # old_params["messages"][0]["tool_calls"][0]["function"]["arguments"] = "hello"
-        # # old_params["messages"] = [ old_params["messages"][-2]]
-        # self.llm.completion(**old_params)
-        # ##
+                # Note:
+                # len(state.history) != len(params['messages'])
+                # state.history inlcudes "RecallAction" after first MessageAction
+
+                # len(state.history) = 53; len(params['messages']) = 52
+                self.old_params = params
+        else:
+            for key in self.old_params:
+
+                old_value = self.old_params[key]
+                new_value = params[key]
+                old_value_cropped = str(old_value)[:-1]
+                with open(
+                    f"restore_traj_old_params_{key}.txt", "w", encoding="utf-8"
+                ) as file:
+                    file.write(old_value_cropped)
+                with open(
+                    f"restore_traj_params_{key}.txt", "w", encoding="utf-8"
+                ) as file:
+                    file.write(str(new_value)[: len(old_value_cropped)])
+
+                assert old_value_cropped == str(new_value)[: len(old_value_cropped)]
 
         response = self.llm.completion(**params)
 
@@ -418,6 +437,10 @@ class DataScienceBenchAgent(Agent):
         next_action = self.pending_actions.popleft()
         if self._uses_sklearn(next_action):
             raise RuntimeError('Scikit-learn usage is not allowed in this agent.')
+
+        # Basic case, sanity check
+        if not self.cfg.restore_trajectory_path:
+            self.old_params = params
 
         return next_action
 

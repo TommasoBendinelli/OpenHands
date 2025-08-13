@@ -14,7 +14,7 @@ python -m evaluation.benchmarks.data_science_bench.run_infer \
   instance=$instance \
   constraints=0 \
   llm_config=$models \
-  feedback_iterations=5 \
+  feedback_iterations=20 \
   cheating_attempt=False \
   warm_against_cheating=False \
   max_budget_per_task=1 \
@@ -26,4 +26,4 @@ python -m evaluation.benchmarks.data_science_bench.run_infer \
   disable_numbers=False \
   is_read_csv_banned=False \
   identifier_experiment="baseline" \
-  replay_trajectory_path="" \
+  replay_trajectory_path="evaluation/evaluation_outputs/outputs/2025-08-08/2025-08-08_17-10-47_0/cofounded_group_outlier/DataScienceBenchAgent/gemini-2.5-pro_maxiter_30_N_temp/output.jsonl" \
