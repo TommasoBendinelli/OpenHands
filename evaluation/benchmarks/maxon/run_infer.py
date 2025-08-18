@@ -1,12 +1,9 @@
 import asyncio
-import json
 import os
-from functools import partial
 from pathlib import Path
 from typing import Any
 
 import hydra
-import numpy as np
 import pandas as pd
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
@@ -37,7 +34,7 @@ from openhands.events.serialization.event import event_to_dict
 from openhands.runtime.base import Runtime
 from openhands.utils.async_utils import call_async_from_sync
 
-from .benchmark_additions import errorbench_user_response, kill_instance, safe_append
+from .benchmark_additions import kill_instance, safe_append
 
 AGENT_CLS_TO_FAKE_USER_RESPONSE_FN = {
     'CodeActAgent': codeact_user_response,
@@ -115,7 +112,7 @@ def initialize_runtime(
     logger.info(f'{"-" * 50} BEGIN Runtime Initialization Fn {"-" * 50}')
     obs: CmdOutputObservation
 
-    base_path = Path(f'evaluation/benchmarks/maxon/tasks/{instance["class_type"]}/')
+    Path(f'evaluation/benchmarks/maxon/tasks/{instance["class_type"]}/')
 
     if instance['class_type'] == 'logs':
         runtime.copy_to(
@@ -179,7 +176,6 @@ def process_instance(
     # This value is reported in the final `test_result` section.  Initialise it
     # to ``False`` so that a violation is only flagged when the relevant error
     # message is detected.
-    is_sklearn_violation = False
 
     # Set up the logger properly, so you can run multi-processing to parallelize the evaluation
     if reset_logger:

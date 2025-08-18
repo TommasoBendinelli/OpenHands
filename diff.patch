@@ -1,0 +1,1666 @@
+diff --git a/openhands/agenthub/__init__.py b/openhands/agenthub/__init__.py
+index 29fefaccb..ab0aa7ae1 100644
+--- a/openhands/agenthub/__init__.py
++++ b/openhands/agenthub/__init__.py
+@@ -6,7 +6,6 @@ load_dotenv()
+ from openhands.agenthub import (  # noqa: E402
+     browsing_agent,
+     codeact_agent,
+-    data_science_agent,
+     dummy_agent,
+     loc_agent,
+     readonly_agent,
+@@ -17,7 +16,6 @@ from openhands.controller.agent import Agent  # noqa: E402
+ __all__ = [
+     'Agent',
+     'codeact_agent',
+-    'data_science_agent',
+     'dummy_agent',
+     'browsing_agent',
+     'visualbrowsing_agent',
+diff --git a/openhands/agenthub/data_science_agent/README.md b/openhands/agenthub/data_science_agent/README.md
+deleted file mode 100755
+index 0e15939cd..000000000
+--- a/openhands/agenthub/data_science_agent/README.md
++++ /dev/null
+@@ -1,113 +0,0 @@
+-# CodeAct Agent Framework
+-
+-This folder is an implementation of OpenHands's main agent, the CodeAct Agent. It is based on ([CodeAct](https://arxiv.org/abs/2402.01030), [tweet](https://twitter.com/xingyaow_/status/1754556835703751087)), an idea of consolidating LLM agents' **act**ions into a unified **code** action space for both *simplicity* and *performance*.
+-
+-## Overview
+-
+-The CodeAct agent operates through a function calling interface. At each turn, the agent can:
+-
+-1. **Converse**: Communicate with humans in natural language to ask for clarification, confirmation, etc.
+-2. **CodeAct**: Execute actions through a set of well-defined tools:
+-   - Execute Linux `bash` commands with `execute_bash`
+-   - Run Python code in an [IPython](https://ipython.org/) environment with `execute_ipython_cell`
+-   - Interact with web browsers using `browser` and `web_read`
+-   - Edit files using `str_replace_editor` or `edit_file`
+-
+-![image](https://github.com/All-Hands-AI/OpenHands/assets/38853559/92b622e3-72ad-4a61-8f41-8c040b6d5fb3)
+-
+-## Built-in Tools
+-
+-The agent provides several built-in tools:
+-
+-### 1. `execute_bash`
+-- Execute any valid Linux bash command
+-- Handles long-running commands by running them in background with output redirection
+-- Supports interactive processes with STDIN input and process interruption
+-- Handles command timeouts with automatic retry in background mode
+-
+-### 2. `execute_ipython_cell`
+-- Run Python code in an IPython environment
+-- Supports magic commands like `%pip`
+-- Variables are scoped to the IPython environment
+-- Requires defining variables and importing packages before use
+-
+-### 3. `web_read` and `browser`
+-- `web_read`: Read and convert webpage content to markdown
+-- `browser`: Interact with webpages through Python code
+-- Supports common browser actions like navigation, clicking, form filling, scrolling
+-- Handles file uploads and drag-and-drop operations
+-
+-### 4. `str_replace_editor`
+-- View, create and edit files through string replacement
+-- Persistent state across command calls
+-- File viewing with line numbers
+-- String replacement with exact matching
+-- Undo functionality for edits
+-
+-### 5. `edit_file` (LLM-based)
+-- Edit files using LLM-based content generation
+-- Support for partial file edits with line ranges
+-- Handles large files by editing specific sections
+-- Append mode for adding content to files
+-
+-## Configuration
+-
+-Tools can be enabled/disabled through configuration parameters:
+-- `codeact_enable_browsing`: Enable browser interaction tools
+-- `codeact_enable_jupyter`: Enable IPython code execution
+-- `codeact_enable_llm_editor`: Enable LLM-based file editing (falls back to string replacement editor if disabled)
+-
+-## Micro-agents
+-
+-The agent includes specialized micro-agents for specific tasks:
+-
+-1. **npm**: Handles npm package installation with non-interactive shell workarounds
+-2. **github**: Manages GitHub operations with API token support and PR creation guidelines
+-3. **flarglebargle**: Easter egg response handler
+-
+-## Adding New Tools
+-
+-The CodeAct agent uses a function calling interface based on `litellm`'s `ChatCompletionToolParam`. To add a new tool:
+-
+-1. Define the tool in `function_calling.py`:
+-```python
+-MyTool = ChatCompletionToolParam(
+-    type='function',
+-    function=ChatCompletionToolParamFunctionChunk(
+-        name='my_tool',
+-        description='Description of what the tool does and how to use it',
+-        parameters={
+-            'type': 'object',
+-            'properties': {
+-                'param1': {
+-                    'type': 'string',
+-                    'description': 'Description of parameter 1',
+-                },
+-                'param2': {
+-                    'type': 'integer',
+-                    'description': 'Description of parameter 2',
+-                },
+-            },
+-            'required': ['param1'],  # List required parameters here
+-        },
+-    ),
+-)
+-```
+-
+-2. Add the tool to `get_tools()` in `function_calling.py`
+-3. Implement the corresponding action handler in the agent class
+-
+-## Implementation Details
+-
+-The agent is implemented in two main files:
+-
+-1. `codeact_agent.py`: Core agent implementation with:
+-   - Message history management
+-   - Tool execution handling
+-   - State management
+-   - Action/observation processing
+-
+-2. `function_calling.py`: Tool definitions and function calling interface with:
+-   - Tool parameter specifications
+-   - Tool descriptions and examples
+-   - Function calling response parsing
+diff --git a/openhands/agenthub/data_science_agent/__init__.py b/openhands/agenthub/data_science_agent/__init__.py
+deleted file mode 100755
+index 4b2d8655b..000000000
+--- a/openhands/agenthub/data_science_agent/__init__.py
++++ /dev/null
+@@ -1,4 +0,0 @@
+-from openhands.agenthub.data_science_agent.data_science_agent import DataScienceBenchAgent
+-from openhands.controller.agent import Agent
+-
+-Agent.register('DataScienceBenchAgent', DataScienceBenchAgent)
+diff --git a/openhands/agenthub/data_science_agent/data_science_agent.py b/openhands/agenthub/data_science_agent/data_science_agent.py
+deleted file mode 100755
+index aa6b9f41b..000000000
+--- a/openhands/agenthub/data_science_agent/data_science_agent.py
++++ /dev/null
+@@ -1,489 +0,0 @@
+-import copy
+-import json
+-import os
+-from collections import deque
+-from functools import partial
+-from pathlib import Path
+-
+-import pandas as pd
+-from litellm import ChatCompletionToolParam
+-from omegaconf import DictConfig
+-
+-import openhands.agenthub.data_science_agent.function_calling as ds_function_calling
+-
+-# from openhands.agenthub.error_bench_agent.tools.llm_based_edit import LLMBasedFileEditTool
+-# from openhands.agenthub.error_bench_agent.tools.str_replace_editor import (
+-#     create_str_replace_editor_tool,
+-# )
+-from openhands.agenthub.codeact_agent.tools.think import ThinkTool
+-from openhands.agenthub.data_science_agent.tools.bash import create_cmd_run_tool
+-
+-# from openhands.agenthub.error_bench_agent.tools.browser import BrowserTool
+-from openhands.agenthub.data_science_agent.tools.finish import FinishTool
+-from openhands.agenthub.data_science_agent.tools.ipython import IPythonTool
+-from openhands.controller.agent import Agent
+-from openhands.controller.replay import ReplayManager
+-from openhands.controller.state.state import State
+-from openhands.core.config import AgentConfig
+-from openhands.core.logger import openhands_logger as logger
+-from openhands.core.message import Message
+-from openhands.events.action import (
+-    Action,
+-    AgentFinishAction,
+-    CmdRunAction,
+-    IPythonRunCellAction,
+-    MessageAction,
+-)
+-from openhands.events.event import Event
+-from openhands.events.observation.commands import CmdOutputObservation
+-from openhands.llm.llm import LLM
+-from openhands.memory.condenser import Condenser
+-from openhands.memory.condenser.condenser import Condensation, View
+-from openhands.memory.conversation_memory import ConversationMemory
+-from openhands.runtime.plugins import (
+-    AgentSkillsRequirement,
+-    JupyterRequirement,
+-    PluginRequirement,
+-)
+-from openhands.utils.prompt import PromptManager
+-
+-
+-class DataScienceBenchAgent(Agent):
+-    VERSION = '2.2'
+-    """
+-    The DataScienceBenchAgent is based on the CodeActAgent.
+-    The agent works by passing the model a list of action-observation pairs and prompting the model to take the next step.
+-
+-    ### Overview
+-
+-    This agent implements the CodeAct idea ([paper](https://arxiv.org/abs/2402.01030), [tweet](https://twitter.com/xingyaow_/status/1754556835703751087)) that consolidates LLM agents' **act**ions into a unified **code** action space for both *simplicity* and *performance* (see paper for more details).
+-
+-    The conceptual idea is illustrated below. At each turn, the agent can:
+-
+-    1. **Converse**: Communicate with humans in natural language to ask for clarification, confirmation, etc.
+-    2. **CodeAct**: Choose to perform the task by executing code
+-    - Execute any valid Linux `bash` command
+-    - Execute any valid `Python` code with [an interactive Python interpreter](https://ipython.org/). This is simulated through `bash` command, see plugin system below for more details.
+-
+-    ![image](https://github.com/All-Hands-AI/OpenHands/assets/38853559/92b622e3-72ad-4a61-8f41-8c040b6d5fb3)
+-
+-    """
+-
+-    sandbox_plugins: list[PluginRequirement] = [
+-        # NOTE: AgentSkillsRequirement need to go before JupyterRequirement, since
+-        # AgentSkillsRequirement provides a lot of Python functions,
+-        # and it needs to be initialized before Jupyter for Jupyter to use those functions.
+-        AgentSkillsRequirement(),
+-        JupyterRequirement(),
+-    ]
+-
+-    def __init__(
+-        self,
+-        llm: LLM,
+-        config: AgentConfig,
+-        cfg: DictConfig | None = None,
+-    ) -> None:
+-        """Initializes a new instance of the CodeActAgent class.
+-
+-        Parameters:
+-        - llm (LLM): The llm to be used by this agent
+-        - config (AgentConfig): The configuration for this agent
+-        """
+-        super().__init__(llm, config)
+-        self.cfg = cfg
+-        self.pending_actions: deque[Action] = deque()
+-        self.reset()
+-        self.tools = self._get_tools()
+-        self._prompt_manager = PromptManager(
+-            prompt_dir=os.path.join(os.path.dirname(__file__), 'prompts'),
+-        )
+-        # Create a ConversationMemory instance
+-        self.conversation_memory = ConversationMemory(self.config, self.prompt_manager)
+-
+-        self.condenser = Condenser.from_config(self.config.condenser)
+-        logger.debug(f'Using condenser: {type(self.condenser)}')
+-
+-        self.response_to_actions_fn = partial(
+-            ds_function_calling.response_to_actions, cfg=self.cfg
+-        )
+-
+-    def _get_tools(self) -> list[ChatCompletionToolParam]:
+-        # For these models, we use short tool descriptions ( < 1024 tokens)
+-        # to avoid hitting the OpenAI token limit for tool descriptions.
+-        SHORT_TOOL_DESCRIPTION_LLM_SUBSTRS = ['gpt-', 'o3', 'o1', 'o4']
+-
+-        use_short_tool_desc = False
+-        if self.llm is not None:
+-            use_short_tool_desc = any(
+-                model_substr in self.llm.config.model
+-                for model_substr in SHORT_TOOL_DESCRIPTION_LLM_SUBSTRS
+-            )
+-
+-        tools = []
+-        if self.config.enable_cmd:
+-            tools.append(create_cmd_run_tool(use_short_description=use_short_tool_desc))
+-        if self.config.enable_think:
+-            tools.append(ThinkTool)
+-        if self.config.enable_finish and not (
+-            self.cfg and self.cfg.keep_going_until_succeed
+-        ):
+-            tools.append(FinishTool)
+-        if self.config.enable_jupyter:
+-            tools.append(IPythonTool)
+-        return tools
+-
+-    def reset(self) -> None:
+-        """Resets the CodeAct Agent."""
+-        super().reset()
+-        self.pending_actions.clear()
+-
+-    def _uses_sklearn(self, action: Action) -> bool:
+-        """Detect if an action tries to use scikit-learn."""
+-        if isinstance(action, IPythonRunCellAction):
+-            code = action.code.lower()
+-            if 'sklearn' in code or 'scikit-learn' in code:
+-                return True
+-        if isinstance(action, CmdRunAction):
+-            cmd = action.command.lower()
+-            if 'sklearn' in cmd or 'scikit-learn' in cmd:
+-                return True
+-            import shlex
+-
+-            tokens = shlex.split(action.command)
+-            if tokens and tokens[0].startswith('python') and len(tokens) > 1:
+-                # Look for the first non-flag argument as the script
+-                script = None
+-                for t in tokens[1:]:
+-                    if not t.startswith('-'):
+-                        script = t
+-                        break
+-                if script and script.endswith('.py') and os.path.exists(script):
+-                    try:
+-                        with open(script, 'r', encoding='utf-8') as f:
+-                            contents = f.read().lower()
+-                        if 'sklearn' in contents or 'scikit-learn' in contents:
+-                            return True
+-                    except OSError:
+-                        pass
+-        return False
+-
+-    def _feedback_limit_reached(self, state: State) -> bool:
+-        """Check if the feedback iteration limit has been reached."""
+-        if not (self.cfg and getattr(self.cfg, 'feedback_iterations', 0) > 0):
+-            return False
+-
+-        if not state.history:
+-            return False
+-        last_event = state.history[-1]
+-        if (
+-            isinstance(last_event, CmdOutputObservation)
+-            and f'Script has been run {self.cfg.feedback_iterations} times; limit of {self.cfg.feedback_iterations} reached. Exiting.'
+-            in last_event.content
+-        ):
+-            return True
+-
+-        return False
+-
+-    def step(self, state: State) -> Action:
+-        """Performs one step using the CodeAct Agent.
+-
+-        This includes gathering info on previous steps and prompting the model to make a command to execute.
+-
+-        Parameters:
+-        - state (State): used to get updated info
+-
+-        Returns:
+-        - CmdRunAction(command) - bash command to run
+-        - IPythonRunCellAction(code) - IPython code to run
+-        - AgentDelegateAction(agent, inputs) - delegate action for (sub)task
+-        - MessageAction(content) - Message action to run (e.g. ask for clarification)
+-        - AgentFinishAction() - end the interaction
+-        """
+-        # Continue with pending actions if any
+-        if self.pending_actions:
+-            next_action = self.pending_actions.popleft()
+-            if self._uses_sklearn(next_action):
+-                raise RuntimeError('Scikit-learn usage is not allowed in this agent.')
+-            return next_action
+-
+-        if self._feedback_limit_reached(state):
+-            raise RuntimeError('Feedback iteration limit reached.')
+-            # return AgentFinishAction(
+-            #     final_thought='Feedback iteration limit reached.',
+-            #     task_completed=AgentFinishTaskCompleted.PARTIAL,
+-            # )
+-        # if we're done, go back
+-        latest_user_message = state.get_last_user_message()
+-        if latest_user_message and latest_user_message.content.strip() == '/exit':
+-            return AgentFinishAction()
+-
+-        # Condense the events from the state. If we get a view we'll pass those
+-        # to the conversation manager for processing, but if we get a condensation
+-        # event we'll just return that instead of an action. The controller will
+-        # immediately ask the agent to step again with the new view.
+-        condensed_history: list[Event] = []
+-        match self.condenser.condensed_history(state):
+-            case View(events=events):
+-                condensed_history = events
+-
+-            case Condensation(action=condensation_action):
+-                return condensation_action
+-
+-        logger.debug(
+-            f'Processing {len(condensed_history)} events from a total of {len(state.history)} events'
+-        )
+-
+-        if self.cfg and self.cfg.is_plotting_enabled:
+-            content = [x.content for x in condensed_history if hasattr(x, 'content')]
+-            # Find all the times where data:image/png;base64, appears in the text
+-            text = '\n'.join(content)
+-            pngs = []
+-            for i, line in enumerate(text.split('\n')):
+-                if 'data:image/png;base64,' in line:
+-                    # breakpoint()
+-                    # with open(current / f'{i}.png', 'wb') as f:
+-                    #     f.write(png.encode('utf-8'))
+-                    png = line.split('data:image/png;base64,')[1].split(')')[0]
+-                    pngs.append(png)
+-        initial_user_message = self._get_initial_user_message(state.history)
+-        messages = self._get_messages(condensed_history, initial_user_message)
+-        params: dict = {
+-            'messages': self.llm.format_messages_for_llm(messages),
+-        }
+-        params['tools'] = self.tools
+-
+-        if self.mcp_tools:
+-            # Only add tools with unique names
+-            existing_names = {tool['function']['name'] for tool in params['tools']}
+-            unique_mcp_tools = [
+-                tool
+-                for tool in self.mcp_tools.values()
+-                if tool['function']['name'] not in existing_names
+-            ]
+-
+-            if self.llm.config.model == 'gemini-2.5-pro-preview-03-25':
+-                logger.info(
+-                    f'Removing the default fields from the MCP tools for {self.llm.config.model} '
+-                    "since it doesn't support them and the request would crash."
+-                )
+-                # prevent mutation of input tools
+-                unique_mcp_tools = copy.deepcopy(unique_mcp_tools)
+-                # Strip off default fields that cause errors with gemini-preview
+-                for tool in unique_mcp_tools:
+-                    if 'function' in tool and 'parameters' in tool['function']:
+-                        if 'properties' in tool['function']['parameters']:
+-                            for prop_name, prop in tool['function']['parameters'][
+-                                'properties'
+-                            ].items():
+-                                if 'default' in prop:
+-                                    del prop['default']
+-
+-            params['tools'] += unique_mcp_tools
+-        # log to litellm proxy if possible
+-        params['extra_body'] = {'metadata': state.to_llm_metadata(agent_name=self.name)}
+-
+-        # Remove anything that is more than contains more than 100 digits in a row
+-        if self.cfg and self.cfg.disable_numbers:
+-            # Get the data if not already there
+-            if 'numberical_values' not in dir(self):
+-                # Get the data file
+-
+-                # Open the file
+-                if self.cfg:
+-                    df = pd.read_csv(
+-                        f'evaluation/benchmarks/error_bench/tasks/{self.cfg.class_type}/{self.cfg.instance}/train.csv'
+-                    )
+-                    # Extract all the numbers of the first five rows and convert them to a list
+-                    self.numberical_values = df.values.flatten()[:1000].tolist()
+-                else:
+-                    self.numberical_values = []
+-
+-            for message in params['messages']:
+-                # try:
+-                candidate = message.get('content', '')
+-                if isinstance(candidate, dict):
+-                    text = candidate.get('text', '')
+-                elif isinstance(candidate, list):
+-                    if len(candidate) == 0:
+-                        continue
+-                    else:
+-                        candidate = candidate[0]
+-                    if isinstance(candidate, dict):
+-                        text = candidate.get('text', '')
+-                    elif isinstance(candidate, str):
+-                        text = candidate
+-                    else:
+-                        # Raise an error if the content is not a string or dict
+-                        raise ValueError(
+-                            f'Unsupported content type: {type(candidate)} in message: {message}'
+-                        )
+-
+-                # if 'gemini' in self.cfg.llm_config or 'llama' in self.cfg.llm_config:
+-                #     text = message.get('content', '')[0]['text']
+-                # elif 'claude' in self.cfg.llm_config:
+-                #     text = message['content']
+-                # else:
+-                #     raise ValueError('Unsupported LLM config')
+-                # text = message.get('content', '')[0]["text"]
+-                counter = 0
+-                # Check if the text contains 4 or more consecutive digits
+-                for num in self.numberical_values:
+-                    if str(num)[:5] in text:
+-                        counter += 1
+-
+-                    if counter > 20:
+-                        if self.cfg and 'gemini' in self.cfg.llm_config:
+-                            # Replace the message with a placeholder
+-                            message['content'][0]['text'] = (
+-                                'Raw numbers of the dataset not available. Report this error to the user and keep going.'
+-                            )
+-                        elif self.cfg and 'claude' in self.cfg.llm_config:
+-                            # Replace the message with a placeholder
+-                            message['content'] = (
+-                                'Raw numbers of the dataset not available. Report this error to the and keep going.'
+-                            )
+-                        # Replace the message with a placeholder
+-                        # message['content'][0]['text'] = "Raw numbers of the dataset not available. Report this to the user and keep going."
+-                        break
+-
+-        def load_replay_log(trajectory_path: str) -> tuple[list[Event] | None, Action]:
+-            """
+-            Load trajectory from given path, serialize it to a list of events, and return
+-            two things:
+-            1) A list of events except the first action
+-            2) First action (user message, a.k.a. initial task)
+-            """
+-            try:
+-                path = Path(trajectory_path).resolve()
+-
+-                if not path.exists():
+-                    raise ValueError(f'Trajectory file not found: {path}')
+-
+-                if not path.is_file():
+-                    raise ValueError(
+-                        f'Trajectory path is a directory, not a file: {path}'
+-                    )
+-
+-                with open(path, 'r', encoding='utf-8') as file:
+-                    output_saved = json.load(file)  # TODO Clean this up
+-                    trajectory = output_saved['history']  # TODO Clean this up
+-                    events = ReplayManager.get_replay_events(
+-                        trajectory
+-                    )  # TODO Clean this up
+-                    assert isinstance(events[0], MessageAction)
+-                    return events[1:], events[0]
+-            except json.JSONDecodeError as e:
+-                raise ValueError(f'Invalid JSON format in {trajectory_path}: {e}')
+-
+-        # if self.cfg.restore_trajectory_path:
+-        #     logger.info('Trajectory restoring is enabled')
+-
+-        #     replay_events, initial_user_action = load_replay_log(
+-        #         self.cfg.restore_trajectory_path
+-        #     )
+-        # state.history items are of type SystemMessageAction, MessageAction, RecallAction, RecallObservation
+-        # restored_history = replay_events
+-        # replay_events.insert(0, initial_user_action)
+-        # state.history = restored_history
+-
+-        # breakpoint()
+-
+-        # First iteration:
+-        # state.history[0] -> SystemMessageAction(content='You are OpenHands agent, a helpful AI..)
+-        # state.history[1] -> MessageAction(content='As a data specialist, your role is to examine the provided dataset...)
+-        # state.history[2] -> RecallAction(recall_type=<RecallType.WORKSPACE_CONTEXT: 'workspace_context'>, query='As a data specialist...)
+-        # state.history[3] -> RecallObservation(content='Added workspace context', recall_type=<RecallType.WORKSPACE_CONTEXT: 'workspace_context'>
+-        # breakpoint()
+-
+-        ## TODO: Remove this
+-        # import copy
+-        # old_params = copy.deepcopy(params)
+-        # old_params["messages"] = old_params["messages"][-2:]
+-        # old_params["messages"][-1]["content"][0]["text"] = "hello"
+-        # old_params["messages"][0]["tool_calls"][0]["function"]["arguments"] = "hello"
+-        # # old_params["messages"] = [ old_params["messages"][-2]]
+-        # self.llm.completion(**old_params)
+-        # ##
+-
+-        response = self.llm.completion(**params)
+-
+-        logger.debug(f'Response from LLM: {response}')
+-        actions = self.response_to_actions_fn(response)
+-        logger.debug(f'Actions after response_to_actions: {actions}')
+-        for action in actions:
+-            if self._uses_sklearn(action):
+-                raise RuntimeError('Scikit-learn usage is not allowed in this agent.')
+-            self.pending_actions.append(action)
+-
+-        next_action = self.pending_actions.popleft()
+-        if self._uses_sklearn(next_action):
+-            raise RuntimeError('Scikit-learn usage is not allowed in this agent.')
+-
+-        return next_action
+-
+-    def _get_initial_user_message(self, history: list[Event]) -> MessageAction:
+-        """Finds the initial user message action from the full history."""
+-        initial_user_message: MessageAction | None = None
+-        for event in history:
+-            if isinstance(event, MessageAction) and event.source == 'user':
+-                initial_user_message = event
+-                break
+-
+-        if initial_user_message is None:
+-            logger.error(
+-                f'CRITICAL: Could not find the initial user MessageAction in the full {len(history)} events history.'
+-            )
+-            raise ValueError(
+-                'Initial user message not found in history. Please report this issue.'
+-            )
+-        return initial_user_message
+-
+-    def _get_messages(
+-        self, events: list[Event], initial_user_message: MessageAction
+-    ) -> list[Message]:
+-        """Constructs the message history for the LLM conversation.
+-
+-        This method builds a structured conversation history by processing events from the state
+-        and formatting them into messages that the LLM can understand. It handles both regular
+-        message flow and function-calling scenarios.
+-
+-        The method performs the following steps:
+-        1. Checks for SystemMessageAction in events, adds one if missing (legacy support)
+-        2. Processes events (Actions and Observations) into messages, including SystemMessageAction
+-        3. Handles tool calls and their responses in function-calling mode
+-        4. Manages message role alternation (user/assistant/tool)
+-        5. Applies caching for specific LLM providers (e.g., Anthropic)
+-        6. Adds environment reminders for non-function-calling mode
+-
+-        Args:
+-            events: The list of events to convert to messages
+-            initial_user_message: The first user message from the conversation
+-
+-        Returns:
+-            list[Message]: A list of formatted messages ready for LLM consumption, including:
+-                - System message with prompt (from SystemMessageAction)
+-                - Action messages (from both user and assistant)
+-                - Observation messages (including tool responses)
+-                - Environment reminders (in non-function-calling mode)
+-
+-        Note:
+-            - In function-calling mode, tool calls and their responses are carefully tracked
+-              to maintain proper conversation flow
+-            - Messages from the same role are combined to prevent consecutive same-role messages
+-            - For Anthropic models, specific messages are cached according to their documentation
+-        """
+-        if not self.prompt_manager:
+-            raise Exception('Prompt Manager not instantiated.')
+-
+-        # Use ConversationMemory to process events (including SystemMessageAction)
+-        messages = self.conversation_memory.process_events(
+-            condensed_history=events,
+-            initial_user_action=initial_user_message,
+-            max_message_chars=self.llm.config.max_message_chars,
+-            vision_is_active=self.llm.vision_is_active(),
+-        )
+-
+-        if self.llm.is_caching_prompt_active():
+-            self.conversation_memory.apply_prompt_caching(messages)
+-
+-        return messages
+diff --git a/openhands/agenthub/data_science_agent/function_calling.py b/openhands/agenthub/data_science_agent/function_calling.py
+deleted file mode 100755
+index 5574adeba..000000000
+--- a/openhands/agenthub/data_science_agent/function_calling.py
++++ /dev/null
+@@ -1,268 +0,0 @@
+-"""This file contains the function calling implementation for different actions.
+-
+-This is similar to the functionality of `CodeActResponseParser`.
+-"""
+-
+-import json
+-
+-from litellm import (
+-    ModelResponse,
+-)
+-
+-from openhands.agenthub.codeact_agent.tools import (
+-    BrowserTool,
+-    FinishTool,
+-    IPythonTool,
+-    LLMBasedFileEditTool,
+-    ThinkTool,
+-    create_cmd_run_tool,
+-    create_str_replace_editor_tool,
+-)
+-from openhands.core.exceptions import (
+-    FunctionCallNotExistsError,
+-    FunctionCallValidationError,
+-)
+-from openhands.core.logger import openhands_logger as logger
+-from openhands.events.action import (
+-    Action,
+-    AgentDelegateAction,
+-    AgentFinishAction,
+-    AgentThinkAction,
+-    BrowseInteractiveAction,
+-    CmdRunAction,
+-    FileEditAction,
+-    FileReadAction,
+-    IPythonRunCellAction,
+-    MessageAction,
+-)
+-from openhands.events.event import FileEditSource, FileReadSource
+-from openhands.events.tool import ToolCallMetadata
+-
+-
+-def combine_thought(action: Action, thought: str) -> Action:
+-    if not hasattr(action, 'thought'):
+-        return action
+-    if thought and action.thought:
+-        action.thought = f'{thought}\n{action.thought}'
+-    elif thought:
+-        action.thought = thought
+-    return action
+-
+-
+-def response_to_actions(response: ModelResponse, cfg=None) -> list[Action]:
+-    actions: list[Action] = []
+-    assert len(response.choices) == 1, 'Only one choice is supported for now'
+-    choice = response.choices[0]
+-    assistant_msg = choice.message
+-
+-    if hasattr(assistant_msg, 'tool_calls') and assistant_msg.tool_calls:
+-        # Check if there's assistant_msg.content. If so, add it to the thought
+-        thought = ''
+-        if isinstance(assistant_msg.content, str):
+-            thought = assistant_msg.content
+-        elif isinstance(assistant_msg.content, list):
+-            for msg in assistant_msg.content:
+-                if msg['type'] == 'text':
+-                    thought += msg['text']
+-
+-        # Process each tool call to OpenHands action
+-        for i, tool_call in enumerate(assistant_msg.tool_calls):
+-            action: Action
+-            logger.debug(f'Tool call in function_calling.py: {tool_call}')
+-            try:
+-                arguments = json.loads(tool_call.function.arguments)
+-            except json.decoder.JSONDecodeError as e:
+-                raise RuntimeError(
+-                    f'Failed to parse tool call arguments: {tool_call.function.arguments}'
+-                ) from e
+-
+-            # ================================================
+-            # CmdRunTool (Bash)
+-            # ================================================
+-            if tool_call.function.name == create_cmd_run_tool()['function']['name']:
+-                if 'command' not in arguments:
+-                    raise FunctionCallValidationError(
+-                        f'Missing required argument "command" in tool call {tool_call.function.name}'
+-                    )
+-                # convert is_input to boolean
+-                is_input = arguments.get('is_input', 'false') == 'true'
+-                action = CmdRunAction(command=arguments['command'], is_input=is_input)
+-
+-            # ================================================
+-            # IPythonTool (Jupyter)
+-            # ================================================
+-            elif tool_call.function.name == IPythonTool['function']['name']:
+-                if 'code' not in arguments:
+-                    raise FunctionCallValidationError(
+-                        f'Missing required argument "code" in tool call {tool_call.function.name}'
+-                    )
+-                if cfg.is_sklearn_banned:
+-                    # Check if sklearn is in the code
+-                    if 'import sklearn' in arguments['code']:
+-                        # Then inject a raise Exception at the beginning of the code"
+-                        arguments['code'] = "raise Exception('sklearn is disabled!')\n"
+-
+-                    if 'from sklearn' in arguments['code']:
+-                        # Then inject a raise Exception at the beginning of the code"
+-                        arguments['code'] = "raise Exception('sklearn is disabled!')\n"
+-
+-                if cfg.is_read_csv_banned:
+-                    # Check if read_csv is in the code
+-                    if 'pd.read_csv' in arguments['code']:
+-                        # Then inject a raise Exception at the beginning of the code"
+-                        arguments['code'] = (
+-                            "raise Exception('you are not allowed to use pd.read_csv!')\n"
+-                        )
+-
+-                if '/mnt/test_gt.csv' in arguments['code']:
+-                    # Then inject a raise Exception at the beginning of the code"
+-                    arguments['code'] = (
+-                        "raise Exception('you are not allowed to use /mnt/test_gt.csv!')\n"
+-                    )
+-                # Check if there is plt.savefig() in the code and replace it with plt.show()
+-                if 'plt.savefig' in arguments['code']:
+-                    # Then inject a raise Exception at the beginning of the code"
+-                    # (use a regex so we wipe out everything between the parentheses)
+-                    import re
+-
+-                    arguments['code'] = re.sub(
+-                        r'plt\.savefig\s*\([^)]*\)',  # the whole savefig(…)
+-                        'plt.show()',  # replacement
+-                        arguments['code'],
+-                    )
+-
+-                action = IPythonRunCellAction(code=arguments['code'])
+-            elif tool_call.function.name == 'delegate_to_browsing_agent':
+-                action = AgentDelegateAction(
+-                    agent='BrowsingAgent',
+-                    inputs=arguments,
+-                )
+-
+-            # ================================================
+-            # AgentFinishAction
+-            # ================================================
+-            elif tool_call.function.name == FinishTool['function']['name']:
+-                action = AgentFinishAction(
+-                    final_thought=arguments.get('message', ''),
+-                    task_completed=arguments.get('task_completed', None),
+-                )
+-
+-            # ================================================
+-            # LLMBasedFileEditTool (LLM-based file editor, deprecated)
+-            # ================================================
+-            elif tool_call.function.name == LLMBasedFileEditTool['function']['name']:
+-                if 'path' not in arguments:
+-                    raise FunctionCallValidationError(
+-                        f'Missing required argument "path" in tool call {tool_call.function.name}'
+-                    )
+-                if 'content' not in arguments:
+-                    raise FunctionCallValidationError(
+-                        f'Missing required argument "content" in tool call {tool_call.function.name}'
+-                    )
+-                action = FileEditAction(
+-                    path=arguments['path'],
+-                    content=arguments['content'],
+-                    start=arguments.get('start', 1),
+-                    end=arguments.get('end', -1),
+-                )
+-            elif (
+-                tool_call.function.name
+-                == create_str_replace_editor_tool()['function']['name']
+-            ):
+-                if 'command' not in arguments:
+-                    raise FunctionCallValidationError(
+-                        f'Missing required argument "command" in tool call {tool_call.function.name}'
+-                    )
+-                if 'path' not in arguments:
+-                    raise FunctionCallValidationError(
+-                        f'Missing required argument "path" in tool call {tool_call.function.name}'
+-                    )
+-                path = arguments['path']
+-                command = arguments['command']
+-                other_kwargs = {
+-                    k: v for k, v in arguments.items() if k not in ['command', 'path']
+-                }
+-
+-                if command == 'view':
+-                    action = FileReadAction(
+-                        path=path,
+-                        impl_source=FileReadSource.OH_ACI,
+-                        view_range=other_kwargs.get('view_range', None),
+-                    )
+-                else:
+-                    if 'view_range' in other_kwargs:
+-                        # Remove view_range from other_kwargs since it is not needed for FileEditAction
+-                        other_kwargs.pop('view_range')
+-                    action = FileEditAction(
+-                        path=path,
+-                        command=command,
+-                        impl_source=FileEditSource.OH_ACI,
+-                        **other_kwargs,
+-                    )
+-            # ================================================
+-            # AgentThinkAction
+-            # ================================================
+-            elif tool_call.function.name == ThinkTool['function']['name']:
+-                action = AgentThinkAction(thought=arguments.get('thought', ''))
+-
+-            # ================================================
+-            # BrowserTool
+-            # ================================================
+-            elif tool_call.function.name == BrowserTool['function']['name']:
+-                if 'code' not in arguments:
+-                    raise FunctionCallValidationError(
+-                        f'Missing required argument "code" in tool call {tool_call.function.name}'
+-                    )
+-                action = BrowseInteractiveAction(browser_actions=arguments['code'])
+-
+-            # # ================================================
+-            # # WebReadTool (simplified browsing)
+-            # # ================================================
+-            # elif tool_call.function.name == WebReadTool['function']['name']:
+-            #     if 'url' not in arguments:
+-            #         raise FunctionCallValidationError(
+-            #             f'Missing required argument "url" in tool call {tool_call.function.name}'
+-            #         )
+-            #     action = BrowseURLAction(url=arguments['url'])
+-
+-            # ================================================
+-            # McpAction (MCP)
+-            # ================================================
+-            # elif tool_call.function.name.endswith(MCPClientTool.postfix()):
+-            #     action = McpAction(
+-            #         name=tool_call.function.name.removesuffix(MCPClientTool.postfix()),
+-            #         arguments=tool_call.function.arguments,
+-            #     )
+-            else:
+-                raise FunctionCallNotExistsError(
+-                    f'Tool {tool_call.function.name} is not registered. (arguments: {arguments}). Please check the tool name and retry with an existing tool.'
+-                )
+-
+-            # We only add thought to the first action
+-            if i == 0:
+-                action = combine_thought(action, thought)
+-            # Add metadata for tool calling
+-            action.tool_call_metadata = ToolCallMetadata(
+-                tool_call_id=tool_call.id,
+-                function_name=tool_call.function.name,
+-                model_response=response,
+-                total_calls_in_response=len(assistant_msg.tool_calls),
+-            )
+-            actions.append(action)
+-    else:
+-        actions.append(
+-            MessageAction(
+-                content=str(assistant_msg.content) if assistant_msg.content else '',
+-                wait_for_response=True,
+-            )
+-        )
+-
+-    # Add response id to actions
+-    # This will ensure we can match both actions without tool calls (e.g. MessageAction)
+-    # and actions with tool calls (e.g. CmdRunAction, IPythonRunCellAction, etc.)
+-    # with the token usage data
+-    for action in actions:
+-        action.response_id = response.id
+-
+-    assert len(actions) >= 1
+-    return actions
+diff --git a/openhands/agenthub/data_science_agent/prompts/additional_info.j2 b/openhands/agenthub/data_science_agent/prompts/additional_info.j2
+deleted file mode 100755
+index 64d466b6c..000000000
+--- a/openhands/agenthub/data_science_agent/prompts/additional_info.j2
++++ /dev/null
+@@ -1,31 +0,0 @@
+-{% if repository_info %}
+-<REPOSITORY_INFO>
+-At the user's request, repository {{ repository_info.repo_name }} has been cloned to the current working directory {{ repository_info.repo_directory }}.
+-</REPOSITORY_INFO>
+-{% endif %}
+-{% if repository_instructions -%}
+-<REPOSITORY_INSTRUCTIONS>
+-{{ repository_instructions }}
+-</REPOSITORY_INSTRUCTIONS>
+-{% endif %}
+-{% if runtime_info and (runtime_info.available_hosts or runtime_info.additional_agent_instructions) -%}
+-<RUNTIME_INFORMATION>
+-{% if runtime_info.available_hosts %}
+-The user has access to the following hosts for accessing a web application,
+-each of which has a corresponding port:
+-{% for host, port in runtime_info.available_hosts.items() -%}
+-* {{ host }} (port {{ port }})
+-{% endfor %}
+-When starting a web server, use the corresponding ports. You should also
+-set any options to allow iframes and CORS requests, and allow the server to
+-be accessed from any host (e.g. 0.0.0.0).
+-For example, if you are using vite.config.js, you should set server.host and server.allowedHosts to true
+-{% endif %}
+-{% if runtime_info.additional_agent_instructions %}
+-{{ runtime_info.additional_agent_instructions }}
+-{% endif %}
+-{% if runtime_info.date %}
+-Today's date is {{ runtime_info.date }} (UTC).
+-{% endif %}
+-</RUNTIME_INFORMATION>
+-{% endif %}
+diff --git a/openhands/agenthub/data_science_agent/prompts/in_context_learning_example.j2 b/openhands/agenthub/data_science_agent/prompts/in_context_learning_example.j2
+deleted file mode 100755
+index 63dac5542..000000000
+--- a/openhands/agenthub/data_science_agent/prompts/in_context_learning_example.j2
++++ /dev/null
+@@ -1,169 +0,0 @@
+-Here's a running example of how to perform a task with the provided tools.
+-
+---------------------- START OF EXAMPLE ---------------------
+-
+-USER: Create a list of numbers from 1 to 10, and display them in a web page at port 5000.
+-
+-A: Sure! Let me first check the current directory:
+-<function=execute_bash>
+-<parameter=command>
+-pwd && ls
+-</parameter>
+-</function>
+-
+-USER: EXECUTION RESULT of [execute_bash]:
+-/workspace
+-openhands@runtime:~/workspace$
+-
+-A: There is no `app.py` file in the current directory. Let me create a Python file `app.py`:
+-<function=str_replace_editor>
+-<parameter=command>create</parameter>
+-<parameter=path>/workspace/app.py</parameter>
+-<parameter=file_text>
+-from flask import Flask
+-app = Flask(__name__)
+-
+-@app.route('/')
+-def index():
+-    numbers = list(range(1, 11))
+-    return '<table>' + ''.join([f'<tr><td>{i}</td></tr>' for i in numbers]) + '</table>'
+-
+-if __name__ == '__main__':
+-    app.run(port=5000)
+-</parameter>
+-</function>
+-
+-USER: EXECUTION RESULT of [str_replace_editor]:
+-File created successfully at: /workspace/app.py
+-
+-A: I have created a Python file `app.py` that will display a list of numbers from 1 to 10 when you run it. Let me run the Python file for you:
+-<function=execute_bash>
+-<parameter=command>
+-python3 app.py > server.log 2>&1 &
+-</parameter>
+-</function>
+-
+-USER: EXECUTION RESULT of [execute_bash]:
+-[1] 121
+-[1]+  Exit 1                  python3 app.py > server.log 2>&1
+-
+-A: Looks like the server is running with PID 121 then crashed. Let me check the server log:
+-<function=execute_bash>
+-<parameter=command>
+-cat server.log
+-</parameter>
+-</function>
+-
+-USER: EXECUTION RESULT of [execute_bash]:
+-Traceback (most recent call last):
+-  File "/workspace/app.py", line 2, in <module>
+-    from flask import Flask
+-ModuleNotFoundError: No module named 'flask'
+-
+-A: Looks like the server crashed because the `flask` module is not installed. Let me install the `flask` module for you:
+-<function=execute_bash>
+-<parameter=command>
+-pip3 install flask
+-</parameter>
+-</function>
+-
+-USER: EXECUTION RESULT of [execute_bash]:
+-Defaulting to user installation because normal site-packages is not writeable
+-Collecting flask
+-  Using cached flask-3.0.3-py3-none-any.whl (101 kB)
+-Collecting blinker>=1.6.2
+-  Using cached blinker-1.7.0-py3-none-any.whl (13 kB)
+-Collecting Werkzeug>=3.0.0
+-  Using cached werkzeug-3.0.2-py3-none-any.whl (226 kB)
+-Collecting click>=8.1.3
+-  Using cached click-8.1.7-py3-none-any.whl (97 kB)
+-Collecting itsdangerous>=2.1.2
+-  Using cached itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+-Requirement already satisfied: Jinja2>=3.1.2 in /home/openhands/.local/lib/python3.10/site-packages (from flask) (3.1.3)
+-Requirement already satisfied: MarkupSafe>=2.0 in /home/openhands/.local/lib/python3.10/site-packages (from Jinja2>=3.1.2->flask) (2.1.5)
+-Installing collected packages: Werkzeug, itsdangerous, click, blinker, flask
+-Successfully installed Werkzeug-3.0.2 blinker-1.7.0 click-8.1.7 flask-3.0.3 itsdangerous-2.2.0
+-
+-A: The `flask` module is installed successfully. Let me run the Python file again:
+-<function=execute_bash>
+-<parameter=command>
+-python3 app.py > server.log 2>&1 &
+-</parameter>
+-</function>
+-
+-USER: EXECUTION RESULT of [execute_bash]:
+-[1] 124
+-
+-A:
+-Let me check the server log again:
+-<function=execute_bash>
+-<parameter=command>
+-cat server.log
+-</parameter>
+-</function>
+-
+-USER: EXECUTION RESULT of [execute_bash]:
+-* Serving Flask app 'app'
+- * Debug mode: off
+-WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+- * Running on http://127.0.0.1:5000
+-Press CTRL+C to quit
+-
+-A:
+-The server is running on port 5000 with PID 124. You can access the list of numbers by visiting http://127.0.0.1:5000. If you have any further questions, feel free to ask!
+-
+-USER: Now kill the server, make it display the numbers in a table format.
+-
+-A:
+-Sure! Let me stop the server first:
+-<function=execute_bash>
+-<parameter=command>
+-kill 124
+-</parameter>
+-</function>
+-
+-USER: EXECUTION RESULT of [execute_bash]:
+-[1]+  Terminated              python3 app.py > server.log 2>&1
+-
+-A:
+-Now let me display the numbers in a table format:
+-<function=str_replace_editor>
+-<parameter=command>str_replace</parameter>
+-<parameter=path>/workspace/app.py</parameter>
+-<parameter=old_str>return '<table>' + ''.join([f'<tr><td>{i}</td></tr>' for i in numbers]) + '</table>'</parameter>
+-<parameter=new_str>return '<table>' + ''.join([f'<tr><td>{i}</td></tr>' for i in numbers]) + '</table>'</parameter>
+-</function>
+-
+-USER: EXECUTION RESULT of [str_replace_editor]:
+-The file /workspace/app.py has been edited. Here's the result of running `cat -n` on a snippet of /workspace/app.py:
+-     3
+-     4  @app.route('/')
+-     5  def index():
+-     6      numbers = list(range(1, 11))
+-     7      return '<table>' + ''.join([f'<tr><td>{i}</td></tr>' for i in numbers]) + '</table>'
+-     8
+-     9  if __name__ == '__main__':
+-    10      app.run(port=5000)
+-Review the changes and make sure they are as expected. Edit the file again if necessary.
+-
+-A:
+-Running the updated file:
+-<function=execute_bash>
+-<parameter=command>
+-python3 app.py > server.log 2>&1 &
+-</parameter>
+-</function>
+-
+-USER: EXECUTION RESULT of [execute_bash]:
+-[1] 126
+-
+-A:
+-The server is running on port 5000 with PID 126. You can access the list of numbers in a table format by visiting http://127.0.0.1:5000. Let me know if you have any further requests!
+-<function=finish>
+-</function>
+-
+---------------------- END OF EXAMPLE ---------------------
+-
+-Do NOT assume the environment is the same as in the example above.
+-
+---------------------- NEW TASK DESCRIPTION ---------------------
+diff --git a/openhands/agenthub/data_science_agent/prompts/in_context_learning_example_suffix.j2 b/openhands/agenthub/data_science_agent/prompts/in_context_learning_example_suffix.j2
+deleted file mode 100755
+index f9868b7b7..000000000
+--- a/openhands/agenthub/data_science_agent/prompts/in_context_learning_example_suffix.j2
++++ /dev/null
+@@ -1,3 +0,0 @@
+---------------------- END OF NEW TASK DESCRIPTION ---------------------
+-
+-PLEASE follow the format strictly! PLEASE EMIT ONE AND ONLY ONE FUNCTION CALL PER MESSAGE.
+diff --git a/openhands/agenthub/data_science_agent/prompts/microagent_info.j2 b/openhands/agenthub/data_science_agent/prompts/microagent_info.j2
+deleted file mode 100755
+index 264828fbe..000000000
+--- a/openhands/agenthub/data_science_agent/prompts/microagent_info.j2
++++ /dev/null
+@@ -1,8 +0,0 @@
+-{% for agent_info in triggered_agents %}
+-<EXTRA_INFO>
+-The following information has been included based on a keyword match for "{{ agent_info.trigger }}".
+-It may or may not be relevant to the user's request.
+-
+-{{ agent_info.content }}
+-</EXTRA_INFO>
+-{% endfor %}
+diff --git a/openhands/agenthub/data_science_agent/prompts/system_prompt.j2 b/openhands/agenthub/data_science_agent/prompts/system_prompt.j2
+deleted file mode 100755
+index 9731b75f1..000000000
+--- a/openhands/agenthub/data_science_agent/prompts/system_prompt.j2
++++ /dev/null
+@@ -1,73 +0,0 @@
+-You are OpenHands agent, a helpful AI assistant that can interact with a computer to solve tasks.
+-
+-<ROLE>
+-Your primary role is to assist users by executing commands, modifying code, and solving technical problems effectively. You should be thorough, methodical, and prioritize quality over speed.
+-* If the user asks a question, like "why is X happening", don't try to fix the problem. Just give an answer to the question.
+-</ROLE>
+-
+-<EFFICIENCY>
+-* Each action you take is somewhat expensive. Wherever possible, combine multiple actions into a single action, e.g. combine multiple bash commands into one, using sed and grep to edit/view multiple files at once.
+-* When exploring the codebase, use efficient tools like find, grep, and git commands with appropriate filters to minimize unnecessary operations.
+-</EFFICIENCY>
+-
+-<FILE_SYSTEM_GUIDELINES>
+-* When a user provides a file path, do NOT assume it's relative to the current working directory. First explore the file system to locate the file before working on it.
+-* If asked to edit a file, edit the file directly, rather than creating a new file with a different filename.
+-* For global search-and-replace operations, consider using `sed` instead of opening file editors multiple times.
+-</FILE_SYSTEM_GUIDELINES>
+-
+-<CODE_QUALITY>
+-* Write clean, efficient code with minimal comments. Avoid redundancy in comments: Do not repeat information that can be easily inferred from the code itself.
+-* When implementing solutions, focus on making the minimal changes needed to solve the problem.
+-* Before implementing any changes, first thoroughly understand the codebase through exploration.
+-* If you are adding a lot of code to a function or file, consider splitting the function or file into smaller pieces when appropriate.
+-</CODE_QUALITY>
+-
+-<VERSION_CONTROL>
+-* When configuring git credentials, use "openhands" as the user.name and "openhands@all-hands.dev" as the user.email by default, unless explicitly instructed otherwise.
+-* Exercise caution with git operations. Do NOT make potentially dangerous changes (e.g., pushing to main, deleting repositories) unless explicitly asked to do so.
+-* When committing changes, use `git status` to see all modified files, and stage all files necessary for the commit. Use `git commit -a` whenever possible.
+-* Do NOT commit files that typically shouldn't go into version control (e.g., node_modules/, .env files, build directories, cache files, large binaries) unless explicitly instructed by the user.
+-* If unsure about committing certain files, check for the presence of .gitignore files or ask the user for clarification.
+-</VERSION_CONTROL>
+-
+-<PULL_REQUESTS>
+-* When creating pull requests, create only ONE per session/issue unless explicitly instructed otherwise.
+-* When working with an existing PR, update it with new commits rather than creating additional PRs for the same issue.
+-* When updating a PR, preserve the original PR title and purpose, updating description only when necessary.
+-</PULL_REQUESTS>
+-
+-<PROBLEM_SOLVING_WORKFLOW>
+-1. EXPLORATION: Thoroughly explore relevant files and understand the context before proposing solutions
+-2. ANALYSIS: Consider multiple approaches and select the most promising one
+-3. TESTING:
+-   * For bug fixes: Create tests to verify issues before implementing fixes
+-   * For new features: Consider test-driven development when appropriate
+-   * If the repository lacks testing infrastructure and implementing tests would require extensive setup, consult with the user before investing time in building testing infrastructure
+-   * If the environment is not set up to run tests, consult with the user first before investing time to install all dependencies
+-4. IMPLEMENTATION: Make focused, minimal changes to address the problem
+-5. VERIFICATION: If the environment is set up to run tests, test your implementation thoroughly, including edge cases. If the environment is not set up to run tests, consult with the user first before investing time to run tests.
+-</PROBLEM_SOLVING_WORKFLOW>
+-
+-<SECURITY>
+-* Only use GITHUB_TOKEN and other credentials in ways the user has explicitly requested and would expect.
+-* Use APIs to work with GitHub or other platforms, unless the user asks otherwise or your task requires browsing.
+-</SECURITY>
+-
+-<ENVIRONMENT_SETUP>
+-* When user asks you to run an application, don't stop if the application is not installed. Instead, please install the application and run the command again.
+-* If you encounter missing dependencies:
+-  1. First, look around in the repository for existing dependency files (requirements.txt, pyproject.toml, package.json, Gemfile, etc.)
+-  2. If dependency files exist, use them to install all dependencies at once (e.g., `pip install -r requirements.txt`, `npm install`, etc.)
+-  3. Only install individual packages directly if no dependency files are found or if only specific packages are needed
+-* Similarly, if you encounter missing dependencies for essential tools requested by the user, install them when possible.
+-</ENVIRONMENT_SETUP>
+-
+-<TROUBLESHOOTING>
+-* If you've made repeated attempts to solve a problem but tests still fail or the user reports it's still broken:
+-  1. Step back and reflect on 5-7 different possible sources of the problem
+-  2. Assess the likelihood of each possible cause
+-  3. Methodically address the most likely causes, starting with the highest probability
+-  4. Document your reasoning process
+-* When you run into any major issue while executing a plan from the user, please don't try to directly work around it. Instead, propose a new plan and confirm with the user before proceeding.
+-</TROUBLESHOOTING>
+diff --git a/openhands/agenthub/data_science_agent/prompts/user_prompt.j2 b/openhands/agenthub/data_science_agent/prompts/user_prompt.j2
+deleted file mode 100755
+index e69de29bb..000000000
+diff --git a/openhands/agenthub/data_science_agent/tools/__init__.py b/openhands/agenthub/data_science_agent/tools/__init__.py
+deleted file mode 100755
+index 953e7832d..000000000
+--- a/openhands/agenthub/data_science_agent/tools/__init__.py
++++ /dev/null
+@@ -1,19 +0,0 @@
+-from .bash import create_cmd_run_tool
+-# from .browser import BrowserTool
+-from .finish import FinishTool
+-from .ipython import IPythonTool
+-# from .llm_based_edit import LLMBasedFileEditTool
+-# from .str_replace_editor import create_str_replace_editor_tool
+-from .think import ThinkTool
+-# from .web_read import WebReadTool
+-
+-__all__ = [
+-    'BrowserTool',
+-    'create_cmd_run_tool',
+-    'FinishTool',
+-    'IPythonTool',
+-    'LLMBasedFileEditTool',
+-    'str_replace_editor',
+-    'WebReadTool',
+-    'ThinkTool',
+-]
+diff --git a/openhands/agenthub/data_science_agent/tools/bash.py b/openhands/agenthub/data_science_agent/tools/bash.py
+deleted file mode 100755
+index 9adbeaa71..000000000
+--- a/openhands/agenthub/data_science_agent/tools/bash.py
++++ /dev/null
+@@ -1,58 +0,0 @@
+-from litellm import ChatCompletionToolParam, ChatCompletionToolParamFunctionChunk
+-
+-_DETAILED_BASH_DESCRIPTION = """Execute a bash command in the terminal within a persistent shell session.
+-
+-### Command Execution
+-* One command at a time: You can only execute one bash command at a time. If you need to run multiple commands sequentially, use `&&` or `;` to chain them together.
+-* Persistent session: Commands execute in a persistent shell session where environment variables, virtual environments, and working directory persist between commands.
+-* Timeout: Commands have a soft timeout of 120 seconds, once that's reached, you have the option to continue or interrupt the command (see section below for details)
+-
+-### Running and Interacting with Processes
+-* Long running commands: For commands that may run indefinitely, run them in the background and redirect output to a file, e.g. `python3 app.py > server.log 2>&1 &`.
+-* Interact with running process: If a bash command returns exit code `-1`, this means the process is not yet finished. By setting `is_input` to `true`, you can:
+-  - Send empty `command` to retrieve additional logs
+-  - Send text (set `command` to the text) to STDIN of the running process
+-  - Send control commands like `C-c` (Ctrl+C), `C-d` (Ctrl+D), or `C-z` (Ctrl+Z) to interrupt the process
+-
+-### Best Practices
+-* Directory verification: Before creating new directories or files, first verify the parent directory exists and is the correct location.
+-* Directory management: Try to maintain working directory by using absolute paths and avoiding excessive use of `cd`.
+-
+-### Output Handling
+-* Output truncation: If the output exceeds a maximum length, it will be truncated before being returned.
+-"""
+-
+-_SHORT_BASH_DESCRIPTION = """Execute a bash command in the terminal.
+-* Long running commands: For commands that may run indefinitely, it should be run in the background and the output should be redirected to a file, e.g. command = `python3 app.py > server.log 2>&1 &`.
+-* Interact with running process: If a bash command returns exit code `-1`, this means the process is not yet finished. By setting `is_input` to `true`, the assistant can interact with the running process and send empty `command` to retrieve any additional logs, or send additional text (set `command` to the text) to STDIN of the running process, or send command like `C-c` (Ctrl+C), `C-d` (Ctrl+D), `C-z` (Ctrl+Z) to interrupt the process.
+-* One command at a time: You can only execute one bash command at a time. If you need to run multiple commands sequentially, you can use `&&` or `;` to chain them together."""
+-
+-
+-def create_cmd_run_tool(
+-    use_short_description: bool = False,
+-) -> ChatCompletionToolParam:
+-    description = (
+-        _SHORT_BASH_DESCRIPTION if use_short_description else _DETAILED_BASH_DESCRIPTION
+-    )
+-    return ChatCompletionToolParam(
+-        type='function',
+-        function=ChatCompletionToolParamFunctionChunk(
+-            name='execute_bash',
+-            description=description,
+-            parameters={
+-                'type': 'object',
+-                'properties': {
+-                    'command': {
+-                        'type': 'string',
+-                        'description': 'The bash command to execute. Can be empty string to view additional logs when previous exit code is `-1`. Can be `C-c` (Ctrl+C) to interrupt the currently running process. Note: You can only execute one bash command at a time. If you need to run multiple commands sequentially, you can use `&&` or `;` to chain them together.',
+-                    },
+-                    'is_input': {
+-                        'type': 'string',
+-                        'description': 'If True, the command is an input to the running process. If False, the command is a bash command to be executed in the terminal. Default is False.',
+-                        'enum': ['true', 'false'],
+-                    },
+-                },
+-                'required': ['command'],
+-            },
+-        ),
+-    )
+diff --git a/openhands/agenthub/data_science_agent/tools/finish.py b/openhands/agenthub/data_science_agent/tools/finish.py
+deleted file mode 100755
+index dd3292f3e..000000000
+--- a/openhands/agenthub/data_science_agent/tools/finish.py
++++ /dev/null
+@@ -1,39 +0,0 @@
+-from litellm import ChatCompletionToolParam, ChatCompletionToolParamFunctionChunk
+-
+-_FINISH_DESCRIPTION = """Signals the completion of the current task or conversation.
+-
+-Use this tool when:
+-- You have successfully completed the user's requested task
+-- You cannot proceed further due to technical limitations or missing information
+-
+-The message should include:
+-- A clear summary of actions taken and their results
+-- Any next steps for the user
+-- Explanation if you're unable to complete the task
+-- Any follow-up questions if more information is needed
+-
+-The task_completed field should be set to True if you believed you have completed the task, and False otherwise.
+-"""
+-
+-FinishTool = ChatCompletionToolParam(
+-    type='function',
+-    function=ChatCompletionToolParamFunctionChunk(
+-        name='finish',
+-        description=_FINISH_DESCRIPTION,
+-        parameters={
+-            'type': 'object',
+-            'required': ['message', 'task_completed'],
+-            'properties': {
+-                'message': {
+-                    'type': 'string',
+-                    'description': 'Final message to send to the user',
+-                },
+-                'task_completed': {
+-                    'type': 'string',
+-                    'enum': ['true', 'false', 'partial'],
+-                    'description': 'Whether you have completed the task.',
+-                },
+-            },
+-        },
+-    ),
+-)
+diff --git a/openhands/agenthub/data_science_agent/tools/ipython.py b/openhands/agenthub/data_science_agent/tools/ipython.py
+deleted file mode 100755
+index d5e0a59b9..000000000
+--- a/openhands/agenthub/data_science_agent/tools/ipython.py
++++ /dev/null
+@@ -1,24 +0,0 @@
+-from litellm import ChatCompletionToolParam, ChatCompletionToolParamFunctionChunk
+-
+-_IPYTHON_DESCRIPTION = """Run a cell of Python code in an IPython environment.
+-* The assistant should define variables and import packages before using them.
+-* The variable defined in the IPython environment will not be available outside the IPython environment (e.g., in terminal).
+-"""
+-
+-IPythonTool = ChatCompletionToolParam(
+-    type='function',
+-    function=ChatCompletionToolParamFunctionChunk(
+-        name='execute_ipython_cell',
+-        description=_IPYTHON_DESCRIPTION,
+-        parameters={
+-            'type': 'object',
+-            'properties': {
+-                'code': {
+-                    'type': 'string',
+-                    'description': 'The Python code to execute. Supports magic commands like %pip.',
+-                },
+-            },
+-            'required': ['code'],
+-        },
+-    ),
+-)
+diff --git a/openhands/agenthub/data_science_agent/tools/think.py b/openhands/agenthub/data_science_agent/tools/think.py
+deleted file mode 100755
+index 198675801..000000000
+--- a/openhands/agenthub/data_science_agent/tools/think.py
++++ /dev/null
+@@ -1,27 +0,0 @@
+-from litellm import ChatCompletionToolParam, ChatCompletionToolParamFunctionChunk
+-
+-_THINK_DESCRIPTION = """Use the tool to think about something. It will not obtain new information or make any changes to the repository, but just log the thought. Use it when complex reasoning or brainstorming is needed.
+-
+-Common use cases:
+-1. When exploring a repository and discovering the source of a bug, call this tool to brainstorm several unique ways of fixing the bug, and assess which change(s) are likely to be simplest and most effective.
+-2. After receiving test results, use this tool to brainstorm ways to fix failing tests.
+-3. When planning a complex refactoring, use this tool to outline different approaches and their tradeoffs.
+-4. When designing a new feature, use this tool to think through architecture decisions and implementation details.
+-5. When debugging a complex issue, use this tool to organize your thoughts and hypotheses.
+-
+-The tool simply logs your thought process for better transparency and does not execute any code or make changes."""
+-
+-ThinkTool = ChatCompletionToolParam(
+-    type='function',
+-    function=ChatCompletionToolParamFunctionChunk(
+-        name='think',
+-        description=_THINK_DESCRIPTION,
+-        parameters={
+-            'type': 'object',
+-            'properties': {
+-                'thought': {'type': 'string', 'description': 'The thought to log.'},
+-            },
+-            'required': ['thought'],
+-        },
+-    ),
+-)
+diff --git a/openhands/controller/agent_controller.py b/openhands/controller/agent_controller.py
+index 909a32690..a1ce7dfbf 100644
+--- a/openhands/controller/agent_controller.py
++++ b/openhands/controller/agent_controller.py
+@@ -323,9 +323,6 @@ class AgentController:
+                 or isinstance(e, LLMContextWindowExceedError)
+             ):
+                 reported = e
+-            elif isinstance(e, RuntimeError):
+-                # Preserve the original RuntimeError message
+-                reported = e
+             else:
+                 self.log(
+                     'warning',
+diff --git a/openhands/core/config/openhands_config.py b/openhands/core/config/openhands_config.py
+index e95f342b0..790c990d9 100644
+--- a/openhands/core/config/openhands_config.py
++++ b/openhands/core/config/openhands_config.py
+@@ -39,7 +39,6 @@ class OpenHandsConfig(BaseModel):
+         save_trajectory_path: Either a folder path to store trajectories with auto-generated filenames, or a designated trajectory file path.
+         save_screenshots_in_trajectory: Whether to save screenshots in trajectory (in encoded image format).
+         replay_trajectory_path: Path to load trajectory and replay. If provided, trajectory would be replayed first before user's instruction.
+-        restore_trajectory_path: Path to a previously saved trajectory file. The agent will load and resume from this trajectory as the initial state, treating it as historical context provided in the first user message.
+         search_api_key: API key for Tavily search engine (https://tavily.com/).
+         workspace_base (deprecated): Base path for the workspace. Defaults to `./workspace` as absolute path.
+         workspace_mount_path (deprecated): Path to mount the workspace. Defaults to `workspace_base`.
+@@ -75,7 +74,6 @@ class OpenHandsConfig(BaseModel):
+     save_trajectory_path: str | None = Field(default=None)
+     save_screenshots_in_trajectory: bool = Field(default=False)
+     replay_trajectory_path: str | None = Field(default=None)
+-    restore_trajectory_path: str | None = Field(default=None)
+     search_api_key: SecretStr | None = Field(
+         default=None,
+         description='API key for Tavily search engine (https://tavily.com/). Required for search functionality.',
+diff --git a/openhands/core/config/utils.py b/openhands/core/config/utils.py
+index c411430ca..1af26ce44 100644
+--- a/openhands/core/config/utils.py
++++ b/openhands/core/config/utils.py
+@@ -523,15 +523,7 @@ def get_llm_config_arg(
+             toml_config = toml.load(toml_contents)
+     except FileNotFoundError as e:
+         logger.openhands_logger.error(f'Config file not found: {e}')
+-        # Some tests only provide ``config.template.toml``. Fall back to this
+-        # template if the primary file is missing so the configuration lookup
+-        # still succeeds in those environments.
+-        template_file = toml_file.replace('.toml', '.template.toml')
+-        try:
+-            with open(template_file, 'r', encoding='utf-8') as toml_contents:
+-                toml_config = toml.load(toml_contents)
+-        except FileNotFoundError:
+-            return None
++        return None
+     except toml.TomlDecodeError as e:
+         logger.openhands_logger.error(
+             f'Cannot parse llm group from {llm_config_arg}. Exception: {e}'
+@@ -710,7 +702,7 @@ def get_parser() -> argparse.ArgumentParser:
+         '-b',
+         '--max-budget-per-task',
+         type=float,
+-        help='Maximum cumulative budget per task in USD (0 disables the limit).',
++        help='The maximum budget allowed per task, beyond which the agent will stop.',
+     )
+     # --eval configs are for evaluations only
+     parser.add_argument(
+diff --git a/openhands/core/setup.py b/openhands/core/setup.py
+index 558b99521..3a210b768 100644
+--- a/openhands/core/setup.py
++++ b/openhands/core/setup.py
+@@ -183,19 +183,9 @@ def create_agent(config: OpenHandsConfig) -> Agent:
+     agent_config = config.get_agent_config(config.default_agent)
+     llm_config = config.get_llm_config_from_agent(config.default_agent)
+ 
+-    extra_kwargs = {}
+-    try:
+-        import inspect
+-
+-        if 'cfg' in inspect.signature(agent_cls.__init__).parameters:
+-            extra_kwargs['cfg'] = getattr(config.extended, 'cfg', None)
+-    except Exception:
+-        pass
+-
+     agent = agent_cls(
+         llm=LLM(config=llm_config),
+         config=agent_config,
+-        **extra_kwargs,
+     )
+ 
+     return agent
+diff --git a/openhands/events/action/message.py b/openhands/events/action/message.py
+index b28949d77..767494e32 100644
+--- a/openhands/events/action/message.py
++++ b/openhands/events/action/message.py
+@@ -41,7 +41,7 @@ class MessageAction(Action):
+ 
+ 
+ @dataclass
+-class SystemMessageAction(MessageAction):
++class SystemMessageAction(Action):
+     """
+     Action that represents a system message for an agent, including the system prompt
+     and available tools. This should be the first message in the event stream.
+diff --git a/openhands/llm/llm.py b/openhands/llm/llm.py
+index e7e6499ca..0e31e74d1 100644
+--- a/openhands/llm/llm.py
++++ b/openhands/llm/llm.py
+@@ -108,8 +108,6 @@ MODELS_WITHOUT_STOP_WORDS = [
+     'o1-preview',
+     'o1',
+     'o1-2024-12-17',
+-    'o4-mini',
+-    'o4-mini-2025-04-16',
+     'xai/grok-4-0709',
+ ]
+ 
+diff --git a/openhands/runtime/plugins/jupyter/__init__.py b/openhands/runtime/plugins/jupyter/__init__.py
+index 8a462cf45..a5dd28eb8 100644
+--- a/openhands/runtime/plugins/jupyter/__init__.py
++++ b/openhands/runtime/plugins/jupyter/__init__.py
+@@ -37,11 +37,13 @@ class JupyterPlugin(Plugin):
+         if not is_local_runtime:
+             # Non-LocalRuntime
+             prefix = f'su - {username} -s '
+-            # cd to code repo and setup all env vars
++            # cd to code repo, setup all env vars and run micromamba
+             poetry_prefix = (
+                 'cd /openhands/code\n'
+                 'export POETRY_VIRTUALENVS_PATH=/openhands/poetry;\n'
+                 'export PYTHONPATH=/openhands/code:$PYTHONPATH;\n'
++                'export MAMBA_ROOT_PREFIX=/openhands/micromamba;\n'
++                '/openhands/micromamba/bin/micromamba run -n openhands '
+             )
+         else:
+             # LocalRuntime
+diff --git a/openhands/runtime/utils/command.py b/openhands/runtime/utils/command.py
+index 300e0897f..18a3d8511 100644
+--- a/openhands/runtime/utils/command.py
++++ b/openhands/runtime/utils/command.py
+@@ -2,6 +2,10 @@ from openhands.core.config import OpenHandsConfig
+ from openhands.runtime.plugins import PluginRequirement
+ 
+ DEFAULT_PYTHON_PREFIX = [
++    '/openhands/micromamba/bin/micromamba',
++    'run',
++    '-n',
++    'openhands',
+     'poetry',
+     'run',
+ ]
+diff --git a/openhands/runtime/utils/runtime_templates/Dockerfile.j2 b/openhands/runtime/utils/runtime_templates/Dockerfile.j2
+index ecc45ef28..14c1cb37e 100644
+--- a/openhands/runtime/utils/runtime_templates/Dockerfile.j2
++++ b/openhands/runtime/utils/runtime_templates/Dockerfile.j2
+@@ -2,6 +2,7 @@ FROM {{ base_image }}
+ 
+ # Shared environment variables
+ ENV POETRY_VIRTUALENVS_PATH=/openhands/poetry \
++    MAMBA_ROOT_PREFIX=/openhands/micromamba \
+     LANG=C.UTF-8 \
+     LC_ALL=C.UTF-8 \
+     EDITOR=code \
+@@ -118,34 +119,26 @@ RUN rm -rf ${OPENVSCODE_SERVER_ROOT}/extensions/{handlebars,pug,json,diff,grunt,
+ # Install all dependencies
+ WORKDIR /openhands/code
+ 
+-RUN if [ -x /openhands/micromamba/bin/micromamba ] ; then \
+-      echo "→ Using Micromamba + Poetry"; \
+-      /openhands/micromamba/bin/micromamba config set changeps1 False && \
+-      /openhands/micromamba/bin/micromamba run -n openhands poetry config virtualenvs.path /openhands/poetry && \
+-      /openhands/micromamba/bin/micromamba run -n openhands poetry env use python3.12 && \
+-      /openhands/micromamba/bin/micromamba run -n openhands poetry install --only main,runtime --no-interaction --no-root && \
+-      {% if enable_browser %}/openhands/micromamba/bin/micromamba run -n openhands poetry run playwright install --with-deps chromium && {% endif %} \
+-      /openhands/micromamba/bin/micromamba run -n openhands poetry run python -c "import sys; print('OH_INTERPRETER_PATH=' + sys.executable)" >> /etc/environment && \
+-      chmod -R g+rws /openhands/poetry && \
+-      mkdir -p /openhands/workspace && chmod -R g+rws,o+rw /openhands/workspace && \
+-      /openhands/micromamba/bin/micromamba run -n openhands poetry cache clear --all . -n ; \
+-    else \
+-      echo "→ Using Poetry-only"; \
+-      poetry config virtualenvs.path /openhands/poetry && \
+-      poetry env use python3.12 && \
+-      poetry install --only main --no-interaction --no-root && \
+-      poetry install --only runtime --no-interaction --no-root && \
+-      apt-get update && \
+-      poetry run pip install playwright && \
+-      poetry run playwright install --with-deps chromium && \
+-      poetry run python -c "import sys; print('OH_INTERPRETER_PATH=' + sys.executable)" >> /etc/environment && \
+-      chmod -R g+rws /openhands/poetry && \
+-      mkdir -p /openhands/workspace && chmod -R g+rws,o+rw /openhands/workspace && \
+-      poetry cache clear --all . -n ; \
+-    fi && \
+-    apt-get clean && \
+-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+-    rm -rf ~/.cache/pip
++RUN \
++    /openhands/micromamba/bin/micromamba config set changeps1 False && \
++    /openhands/micromamba/bin/micromamba run -n openhands poetry config virtualenvs.path /openhands/poetry && \
++    /openhands/micromamba/bin/micromamba run -n openhands poetry env use python3.12 && \
++    # Install project dependencies
++    /openhands/micromamba/bin/micromamba run -n openhands poetry install --only main,runtime --no-interaction --no-root && \
++    # Update and install additional tools
++    # (There used to be an "apt-get update" here, hopefully we can skip it.)
++    {% if enable_browser %}
++    /openhands/micromamba/bin/micromamba run -n openhands poetry run playwright install --with-deps chromium && \
++    {% endif %}
++    # Set environment variables
++    /openhands/micromamba/bin/micromamba run -n openhands poetry run python -c "import sys; print('OH_INTERPRETER_PATH=' + sys.executable)" >> /etc/environment && \
++    # Set permissions
++    chmod -R g+rws /openhands/poetry && \
++    mkdir -p /openhands/workspace && chmod -R g+rws,o+rw /openhands/workspace && \
++    # Clean up
++    /openhands/micromamba/bin/micromamba run -n openhands poetry cache clear --all . -n && \
++    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
++    /openhands/micromamba/bin/micromamba clean --all
+ 
+ {% endmacro %}
+ 
+@@ -158,9 +151,15 @@ RUN if [ -x /openhands/micromamba/bin/micromamba ] ; then \
+ 
+ {{ setup_base_system() }}
+ 
+-# Install poetry
+-RUN curl -fsSL --compressed https://install.python-poetry.org | python - && \
+-    ln -s ~/.local/bin/poetry /usr/local/bin/poetry
++# Install micromamba
++RUN mkdir -p /openhands/micromamba/bin && \
++    /bin/bash -c "PREFIX_LOCATION=/openhands/micromamba BIN_FOLDER=/openhands/micromamba/bin INIT_YES=no CONDA_FORGE_YES=yes $(curl -L https://micro.mamba.pm/install.sh)" && \
++    /openhands/micromamba/bin/micromamba config remove channels defaults && \
++    /openhands/micromamba/bin/micromamba config list
++
++# Create the openhands virtual environment and install poetry and python
++RUN /openhands/micromamba/bin/micromamba create -n openhands -y && \
++    /openhands/micromamba/bin/micromamba install -n openhands -c conda-forge poetry python=3.12 -y
+ 
+ # Create a clean openhands directory including only the pyproject.toml, poetry.lock and openhands/__init__.py
+ RUN \

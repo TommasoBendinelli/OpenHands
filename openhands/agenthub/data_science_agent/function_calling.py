@@ -96,23 +96,23 @@ def response_to_actions(response: ModelResponse, cfg=None) -> list[Action]:
                     raise FunctionCallValidationError(
                         f'Missing required argument "code" in tool call {tool_call.function.name}'
                     )
-                if cfg.is_sklearn_banned:
-                    # Check if sklearn is in the code
-                    if 'import sklearn' in arguments['code']:
-                        # Then inject a raise Exception at the beginning of the code"
-                        arguments['code'] = "raise Exception('sklearn is disabled!')\n"
+                # if cfg.is_sklearn_banned:
+                #     # Check if sklearn is in the code
+                #     if 'import sklearn' in arguments['code']:
+                #         # Then inject a raise Exception at the beginning of the code"
+                #         arguments['code'] = "raise Exception('sklearn is disabled!')\n"
 
-                    if 'from sklearn' in arguments['code']:
-                        # Then inject a raise Exception at the beginning of the code"
-                        arguments['code'] = "raise Exception('sklearn is disabled!')\n"
+                #     if 'from sklearn' in arguments['code']:
+                #         # Then inject a raise Exception at the beginning of the code"
+                #         arguments['code'] = "raise Exception('sklearn is disabled!')\n"
 
-                if cfg.is_read_csv_banned:
-                    # Check if read_csv is in the code
-                    if 'pd.read_csv' in arguments['code']:
-                        # Then inject a raise Exception at the beginning of the code"
-                        arguments['code'] = (
-                            "raise Exception('you are not allowed to use pd.read_csv!')\n"
-                        )
+                # if cfg.is_read_csv_banned:
+                #     # Check if read_csv is in the code
+                #     if 'pd.read_csv' in arguments['code']:
+                #         # Then inject a raise Exception at the beginning of the code"
+                #         arguments['code'] = (
+                #             "raise Exception('you are not allowed to use pd.read_csv!')\n"
+                #         )
 
                 if '/mnt/test_gt.csv' in arguments['code']:
                     # Then inject a raise Exception at the beginning of the code"

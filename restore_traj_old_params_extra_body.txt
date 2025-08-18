@@ -1,0 +1,1 @@
+{'metadata': {'session_id': 'bd65ec28-3c8f-47-ea3dfb1c2048fce', 'trace_version': '0.50.0', 'tags': ['agent:DataScienceBenchAgent', 'web_host:unspecified', 'openhands_version:0.50.0']}
