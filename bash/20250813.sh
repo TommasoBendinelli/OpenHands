@@ -3,11 +3,7 @@ instance=maxon_logs
 models=gemini-pro
 
 # name of the log file.txt
-ticket_file=27979
-
-# 28041,27738,27979,28133,28268,28271,28340
-
-#28041
+ticket_file=28041,27738,27979,28133,28268,28271,28340
 
 python -m evaluation.benchmarks.maxon.run_infer \
   number_of_experiments=1 \
