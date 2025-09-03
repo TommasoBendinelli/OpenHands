@@ -1,9 +1,7 @@
 import copy
-import json
 import os
 from collections import deque
 from functools import partial
-from pathlib import Path
 
 import pandas as pd
 from litellm import ChatCompletionToolParam
@@ -22,7 +20,6 @@ from openhands.agenthub.data_science_agent.tools.bash import create_cmd_run_tool
 from openhands.agenthub.data_science_agent.tools.finish import FinishTool
 from openhands.agenthub.data_science_agent.tools.ipython import IPythonTool
 from openhands.controller.agent import Agent
-from openhands.controller.replay import ReplayManager
 from openhands.controller.state.state import State
 from openhands.core.config import AgentConfig
 from openhands.core.logger import openhands_logger as logger
@@ -201,7 +198,6 @@ class DataScienceBenchAgent(Agent):
         - MessageAction(content) - Message action to run (e.g. ask for clarification)
         - AgentFinishAction() - end the interaction
         """
-        # breakpoint()
         # Continue with pending actions if any
         if self.pending_actions:
             next_action = self.pending_actions.popleft()
@@ -236,18 +232,18 @@ class DataScienceBenchAgent(Agent):
             f'Processing {len(condensed_history)} events from a total of {len(state.history)} events'
         )
 
+        # TODO: Check image saving
         if self.cfg and self.cfg.is_plotting_enabled:
             content = [x.content for x in condensed_history if hasattr(x, 'content')]
             # Find all the times where data:image/png;base64, appears in the text
             text = '\n'.join(content)
-            pngs = []
             for i, line in enumerate(text.split('\n')):
                 if 'data:image/png;base64,' in line:
+                    png = line.split('data:image/png;base64,')[1].split(')')[0]
                     # breakpoint()
+                    # FIXME
                     # with open(current / f'{i}.png', 'wb') as f:
                     #     f.write(png.encode('utf-8'))
-                    png = line.split('data:image/png;base64,')[1].split(')')[0]
-                    pngs.append(png)
 
         initial_user_message = self._get_initial_user_message(state.history)
         messages = self._get_messages(condensed_history, initial_user_message)
@@ -350,62 +346,23 @@ class DataScienceBenchAgent(Agent):
                         # message['content'][0]['text'] = "Raw numbers of the dataset not available. Report this to the user and keep going."
                         break
 
-        def load_replay_log(trajectory_path: str) -> tuple[list[Event] | None, Action]:
-            """
-            Load trajectory from given path, serialize it to a list of events, and return
-            two things:
-            1) A list of events except the first action
-            2) First action (user message, a.k.a. initial task)
-            """
-            try:
-                path = Path(trajectory_path).resolve()
-
-                if not path.exists():
-                    raise ValueError(f'Trajectory file not found: {path}')
-
-                if not path.is_file():
-                    raise ValueError(
-                        f'Trajectory path is a directory, not a file: {path}'
-                    )
-
-                with open(path, 'r', encoding='utf-8') as file:
-                    output_saved = json.load(file)  # TODO Clean this up
-                    trajectory = output_saved['history']  # TODO Clean this up
-                    events = ReplayManager.get_replay_events(
-                        trajectory
-                    )  # TODO Clean this up
-                    assert isinstance(events[0], MessageAction)
-                    # breakpoint()
-                    return events[1:], events[0]
-            except json.JSONDecodeError as e:
-                raise ValueError(f'Invalid JSON format in {trajectory_path}: {e}')
-
         # First iteration: SystemMessageAction, MessageAction, RecallAction, RecallObservation
         # Restore previous trajectory in the beginning
         if self.old_params is None:
-            if self.cfg.restore_trajectory_path:
-                logger.info('Trajectory restoring is enabled')
+            if self.cfg.check_password:
+                logger.info('Asking for password in new user message')
+                user_message_password = params['messages'][2]
+                user_message_password['content'][0]['text'] = 'What is the password?'
+                params['messages'].append(user_message_password)
 
-                replay_events, initial_user_action = load_replay_log(
-                    self.cfg.restore_trajectory_path
-                )
+                # Also modify state.history
+                # Get type MessageAction
+                new_user_message = state.history[4]
+                assert isinstance(new_user_message, MessageAction)
+                new_user_message.content = user_message_password['content'][0]['text']
+                state.history.append(new_user_message)
 
-                restored_history = replay_events
-                state.history = restored_history
-
-                replay_events.insert(
-                    0, initial_user_action
-                )  # Replay events does not include the first action we need to add it again
-                restored_messages = self._get_messages(
-                    replay_events, initial_user_message
-                )
-                params['messages'] = self.llm.format_messages_for_llm(restored_messages)
-
-                # Note:
-                # len(state.history) != len(params['messages'])
-                # state.history inlcudes "RecallAction" after first MessageAction
-
-                # len(state.history) = 53; len(params['messages']) = 52
+            if self.cfg.replay_trajectory_path:
                 self.old_params = params
         else:
             for key in self.old_params:
@@ -438,7 +395,7 @@ class DataScienceBenchAgent(Agent):
             raise RuntimeError('Scikit-learn usage is not allowed in this agent.')
 
         # Basic case, sanity check
-        if not self.cfg.restore_trajectory_path:
+        if not self.cfg.replay_trajectory_path:
             self.old_params = params
 
         return next_action

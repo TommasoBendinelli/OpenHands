@@ -268,7 +268,10 @@ def load_replay_log(trajectory_path: str) -> tuple[list[Event] | None, Action]:
             raise ValueError(f'Trajectory path is a directory, not a file: {path}')
 
         with open(path, 'r', encoding='utf-8') as file:
-            events = ReplayManager.get_replay_events(json.load(file))
+            output_saved = json.load(file)
+            trajectory = output_saved['history']
+            events = ReplayManager.get_replay_events(trajectory)
+            # events = ReplayManager.get_replay_events(json.load(file))
             assert isinstance(events[0], MessageAction)
             return events[1:], events[0]
     except json.JSONDecodeError as e:

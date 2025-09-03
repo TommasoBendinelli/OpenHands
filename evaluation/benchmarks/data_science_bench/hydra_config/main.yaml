@@ -38,6 +38,7 @@ only_plots: false
 identifier_experiment: propotypying
 replay_trajectory_path: ''
 restore_trajectory_path: ''
+check_password: False
 # Inject current date and time as YYYY-MM-DD_HH-MM-SS
 timestamp: ${now:%Y-%m-%d_%H-%M-%S}
 # timestamp: ${now:%Y-%m-%d}
