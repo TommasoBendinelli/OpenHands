@@ -1,11 +1,11 @@
+import base64
 import os
 import sys
-import base64
-
-from pathlib import Path
 from collections import deque
 from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING
+
 from omegaconf import DictConfig
 
 if TYPE_CHECKING:
@@ -204,17 +204,16 @@ class CodeActAgentSimulink(Agent):
 
         if self.cfg and self.cfg.is_plotting_enabled:
             current_event = condensed_history[len(condensed_history) - 1]
-            timestamp = current_event.__dict__["_timestamp"]
+            timestamp = current_event.__dict__['_timestamp']
             if (
                 'image_urls' in current_event.__dict__
                 and current_event.image_urls is not None
             ):
-
                 save_path = Path(self.cfg.eval_output_dir) / 'images'
                 save_path.mkdir(parents=True, exist_ok=True)
                 b64 = current_event.image_urls[0]
-                if b64.startswith("data:image/png;base64"):
-                    b64 = b64.split(",", 1)[1]
+                if b64.startswith('data:image/png;base64'):
+                    b64 = b64.split(',', 1)[1]
                     with open(save_path / f'fig_{timestamp}.png', 'wb') as f:
                         f.write(base64.b64decode(b64))
 

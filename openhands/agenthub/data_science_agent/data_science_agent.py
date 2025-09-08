@@ -234,7 +234,9 @@ class DataScienceBenchAgent(Agent):
 
         # TODO: Check image saving
         if self.cfg and self.cfg.is_plotting_enabled:
-            raise NotImplementedError("To be implemented, can be copied from other agents")
+            raise NotImplementedError(
+                'To be implemented, can be copied from other agents'
+            )
         initial_user_message = self._get_initial_user_message(state.history)
         messages = self._get_messages(condensed_history, initial_user_message)
         params: dict = {
