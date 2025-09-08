@@ -234,17 +234,7 @@ class DataScienceBenchAgent(Agent):
 
         # TODO: Check image saving
         if self.cfg and self.cfg.is_plotting_enabled:
-            content = [x.content for x in condensed_history if hasattr(x, 'content')]
-            # Find all the times where data:image/png;base64, appears in the text
-            text = '\n'.join(content)
-            for i, line in enumerate(text.split('\n')):
-                if 'data:image/png;base64,' in line:
-                    png = line.split('data:image/png;base64,')[1].split(')')[0]
-                    # breakpoint()
-                    # FIXME
-                    # with open(current / f'{i}.png', 'wb') as f:
-                    #     f.write(png.encode('utf-8'))
-
+            raise NotImplementedError("To be implemented, can be copied from other agents")
         initial_user_message = self._get_initial_user_message(state.history)
         messages = self._get_messages(condensed_history, initial_user_message)
         params: dict = {
