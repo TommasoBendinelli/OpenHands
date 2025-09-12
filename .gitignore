@@ -87,6 +87,8 @@ ipython_config.py
 #   intended to run in multiple environments; otherwise, check them in:
 .python-version
 
+evaluation/benchmarks/maxon/
+evaluation/benchmarks/simulink/tasks
 # pipenv
 #   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
 #   However, in case of collaboration, if having platform-specific dependencies or dependencies
@@ -262,3 +264,4 @@ evaluation/benchmarks/data_science_bench/**/*.csv
 evaluation/benchmarks/data_science_bench/**/*.pdf
 figs/
 output.json
+remove_feature_names.py

@@ -1,0 +1,36 @@
+number_of_experiments: 4
+llm_config: open_router
+eval_num_workers: 1
+eval_output_dir: # To be filled in by the script
+agent_cls: DataScienceBenchAgent
+eval_note: temp
+class_type: "simulink"
+instance: "simulink_simulation"
+simulation_example: "fault_tolerant_fuel_system"
+level: "data_features_diagram"
+
+trajectory_visualiser_folder: '/home/tommaso/home_tommaso/repos/OpenHands/trajectory-visualizer/public'
+max_budget_per_task: 0
+enable_browsing_for_pictures: False
+keep_going_until_succeed: True
+disable_numbers: False
+is_plotting_enabled: True
+native_tool_calling: True
+max_iterations: 30
+temperature: 0
+max_retries: 1
+top_p: 1
+identifier_experiment: propotypying
+# Inject current date and time as YYYY-MM-DD_HH-MM-SS
+timestamp: ${now:%Y-%m-%d_%H-%M-%S}
+# timestamp: ${now:%Y-%m-%d}
+sid: "" # If empty, use the default
+fold: -1 # Only used in anomaly detection so far, for the others it's -1
+hydra:
+  job:
+    chdir: false
+  launcher:
+    n_jobs: 2    # limit to 2 parallel runs
+
+defaults:
+  - override hydra/launcher: joblib
