@@ -181,7 +181,6 @@ class CodeActAgentSimulink(Agent):
         if self.pending_actions:
             return self.pending_actions.popleft()
 
-        # if we're done, go back
         latest_user_message = state.get_last_user_message()
         if latest_user_message and latest_user_message.content.strip() == '/exit':
             return AgentFinishAction()
@@ -219,12 +218,26 @@ class CodeActAgentSimulink(Agent):
 
         initial_user_message = self._get_initial_user_message(state.history)
         messages = self._get_messages(condensed_history, initial_user_message)
+
         params: dict = {
             'messages': self.llm.format_messages_for_llm(messages),
         }
         params['tools'] = check_tools(self.tools, self.llm.config)
         params['extra_body'] = {'metadata': state.to_llm_metadata(agent_name=self.name)}
         response = self.llm.completion(**params)
+
+        latest_agent_message = state.get_last_agent_message()
+
+        # Check if <sol> </sol> is in the latest user message, if so, finish the agent
+        if (
+            latest_agent_message
+            and isinstance(latest_agent_message, MessageAction)
+            and '<sol>' in latest_agent_message.content
+        ):
+            breakpoint()
+            logger.info('Model provided solution, finishing the agent.')
+            return AgentFinishAction(latest_agent_message.content)
+
         logger.debug(f'Response from LLM: {response}')
         actions = self.response_to_actions(response)
         logger.debug(f'Actions after response_to_actions: {actions}')

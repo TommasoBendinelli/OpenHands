@@ -155,6 +155,10 @@ def codeact_user_response(
     return msg
 
 
+def codeact_simulink_user_response(state: State) -> str:
+    return None
+
+
 def cleanup():
     print('Cleaning up child processes...')
     for process in mp.active_children():
