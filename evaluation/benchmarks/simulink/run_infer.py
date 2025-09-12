@@ -26,7 +26,7 @@ from openhands.core.config import (
 )
 from openhands.core.logger import openhands_logger as logger
 from openhands.core.main import create_runtime, run_controller
-from openhands.events.action import AgentFinishAction, CmdRunAction, MessageAction
+from openhands.events.action import CmdRunAction, MessageAction
 from openhands.events.action.commands import IPythonRunCellAction
 from openhands.events.observation import CmdOutputObservation
 
@@ -114,7 +114,7 @@ def initialize_runtime(
         base_path = Path(
             f'evaluation/benchmarks/simulink/tasks/{cfg.simulation_example}/'
         )
-        if cfg.level == "data_features_diagram":
+        if cfg.level == 'data_features_diagram':
             path_time_series_data = base_path / 'data.parquet'
             runtime.copy_to(path_time_series_data, '/workspace')
 
@@ -123,10 +123,10 @@ def initialize_runtime(
                 runtime.copy_to(file, '/workspace/diagrams')
 
             logger.info(
-                "Level 1 Context: Time series data + Feature names + Simulink diagrams"
+                'Level 1 Context: Time series data + Feature names + Simulink diagrams'
             )
 
-        elif cfg.level == "data_features_system_description":
+        elif cfg.level == 'data_features_system_description':
             path_correct_simulation = base_path / 'correct_simulation.csv'
             path_fault_simulation = base_path / 'fault_simulation.csv'
             path_description = base_path / 'system_description.txt'
@@ -134,10 +134,10 @@ def initialize_runtime(
             runtime.copy_to(path_fault_simulation, '/workspace')
             runtime.copy_to(path_description, '/workspace')
             logger.info(
-                "Level 2 Context: Time series data + Feature names + (High-level description of the control system)"
+                'Level 2 Context: Time series data + Feature names + (High-level description of the control system)'
             )
 
-        elif cfg.level == "numerical_data_only":
+        elif cfg.level == 'numerical_data_only':
             path_correct_simulation = (
                 base_path / 'correct_simulation_numerical_data_only.csv'
             )
@@ -146,7 +146,7 @@ def initialize_runtime(
             )
             runtime.copy_to(path_correct_simulation, '/workspace')
             runtime.copy_to(path_fault_simulation, '/workspace')
-            logger.info("Level 3 Context: Time series data (No feature names)")
+            logger.info('Level 3 Context: Time series data (No feature names)')
 
     # runtime.copy_to("/home/tommaso/repos/OpenHands/evaluation/benchmarks/ucr_dataset/test.py", '/workspace')
     # Check the database is copied
@@ -205,16 +205,18 @@ def process_instance(
     if instance['class_type'] == 'simulink':
         # instruction = f"""You are given a data file from a control system. One of them is faulty. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
 
-        instruction = f"""You are given data from a control system. The data contains a fault. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
+        instruction = """You are given data from a control system. The data contains a fault. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
         """
 
-        if cfg.level == "data_features_diagram":
+        if cfg.level == 'data_features_diagram':
             # instruction += 'The correct simulation data is in correct_simulation.csv, the faulty simulation data is in fault_simulation.csv and the diagram of the control system is in diagram.png.'
-            instruction += ' Diagrams of the control system are located in /workspace/diagrams.'
+            instruction += (
+                ' Diagrams of the control system are located in /workspace/diagrams.'
+            )
 
-        elif cfg.level == "data_features_system_description":
+        elif cfg.level == 'data_features_system_description':
             instruction += 'The correct simulation data is in correct_simulation.csv, the faulty simulation data is in fault_simulation.csv and a high-level description of the control system is in system_description.txt.'
-        elif cfg.level == "numerical_data_only":
+        elif cfg.level == 'numerical_data_only':
             instruction += 'The correct simulation data is in correct_simulation_numerical_data_only.csv and the faulty simulation data is in fault_simulation_numerical_data_only.csv.'
 
         # Level 1: Time series data + Feature names + Simulink diagram
