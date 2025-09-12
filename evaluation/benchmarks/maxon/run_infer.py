@@ -38,9 +38,6 @@ from .benchmark_additions import kill_instance, safe_append
 
 AGENT_CLS_TO_FAKE_USER_RESPONSE_FN = {
     'CodeActAgent': codeact_user_response,
-    # 'DataScienceBenchAgent': partial(
-    #     errorbench_user_response, encapsulate_solution=True
-    # ),
 }
 
 LOCAL_DATASET_PATH = os.path.join(os.path.dirname(__file__), 'benchmark')
@@ -115,12 +112,15 @@ def initialize_runtime(
     Path(f'evaluation/benchmarks/maxon/tasks/{instance["class_type"]}/')
 
     if instance['class_type'] == 'logs':
-        runtime.copy_to(
-            f'evaluation/benchmarks/maxon/tasks/logs/{cfg.ticket_file}.txt',
-            '/workspace',
-        )
 
-    # runtime.copy_to("/home/tommaso/repos/OpenHands/evaluation/benchmarks/ucr_dataset/test.py", '/workspace')
+        if instance['instance'] == '01_log_solution_within_1000':
+            runtime.copy_to(
+                f'evaluation/benchmarks/maxon/tasks/{instance['instance']}/{cfg.ticket_file}.txt',
+                '/workspace',
+            )
+
+        if instance['instance'] == '02_specific_motor_type':
+
     # Check the database is copied
     action = CmdRunAction(command='cd /workspace && ls -l')
     obs = runtime.run_action(action)
@@ -192,9 +192,6 @@ def process_instance(
         instruction = f"""You are an expert providing assistance about a support ticket. The ticket includes a logfile that contains the information about the issue. You need to identify the issue and suggest solutions for it. The ticket is located at /workspace/{cfg.ticket_file}.txt.
         """
 
-    # instruction += 'Please encapsulate your motivation of your approach within <motivation> and </motivation>. \n'
-    # instruction += 'You can run /mnt/check_submission.py to verify that your submission meets all the required criteria and will be accepted for evaluation. \n'
-
     if cfg.sid:
         sid = cfg.sid
     else:
@@ -222,14 +219,7 @@ def process_instance(
     [code.code for code in state.history if isinstance(code, IPythonRunCellAction)]
 
     # ======= Attempt to evaluate the agent's edits =======
-    test_result = {
-        # 'result': {
-        #     # Backwards compatibility with older naming in the test suite
-        #     'is_sklearn_violated': is_sklearn_violation,
-        #     'metric': scores,
-        #     'number_of_submissions': number_of_submission,
-        # }
-    }
+    test_result = {}
 
     # If you are working on some simpler benchmark that only evaluates the final model output (e.g., in a MessageAction)
     # You can simply get the LAST `MessageAction` from the returned `state.history` and parse it for evaluation.
@@ -350,8 +340,6 @@ def main(cfg):
         process_instance_kwargs={'cfg': cfg},
         max_retries=cfg.max_retries,
     )
-
-    # Add the output file to the trajectory visualiser folder
 
     # Check if the trajectory visualiser folder exists
     if not Path(cfg.trajectory_visualiser_folder).exists():

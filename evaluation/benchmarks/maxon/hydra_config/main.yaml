@@ -5,7 +5,7 @@ eval_output_dir: # To be filled in by the script
 agent_cls: DataScienceBenchAgent
 eval_note: temp
 class_type: "logs"
-instance: "maxon_logs"
+instance: "01_log_solution_within_1000"
 ticket_file: ""
 
 trajectory_visualiser_folder: '/home/tommaso/home_tommaso/repos/OpenHands/trajectory-visualizer/public'
