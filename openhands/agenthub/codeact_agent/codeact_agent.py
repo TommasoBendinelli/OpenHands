@@ -188,8 +188,15 @@ class CodeActAgent(Agent):
         params['tools'] = check_tools(self.tools, self.llm.config)
         params['extra_body'] = {'metadata': state.to_llm_metadata(agent_name=self.name)}
         response = self.llm.completion(**params)
+
+        # if response.choices[0]['message']['tool_calls'][0]['function']['name'] == 'finish':
+        #     breakpoint()
+
         logger.debug(f'Response from LLM: {response}')
         actions = self.response_to_actions(response)
+
+        # breakpoint()
+
         logger.debug(f'Actions after response_to_actions: {actions}')
         for action in actions:
             self.pending_actions.append(action)

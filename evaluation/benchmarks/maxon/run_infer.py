@@ -109,17 +109,43 @@ def initialize_runtime(
     logger.info(f'{"-" * 50} BEGIN Runtime Initialization Fn {"-" * 50}')
     obs: CmdOutputObservation
 
-    Path(f'evaluation/benchmarks/maxon/tasks/{instance["class_type"]}/')
+    base_path = Path(f'evaluation/benchmarks/maxon/tasks/')
 
     if instance['class_type'] == 'logs':
 
-        if instance['instance'] == '01_log_solution_within_1000':
-            runtime.copy_to(
-                f'evaluation/benchmarks/maxon/tasks/{instance['instance']}/{cfg.ticket_file}.txt',
-                '/workspace',
-            )
+        if cfg.instance == '01_log_solution_within_1000':
+            """
+            Tickets where the solution can be found within the attached 1000 lines of logfile and the request -
+            this might be helpful regarding how much context is necessary
+            """
+            data_path = f'{base_path}/{cfg.instance}/{cfg.ticket_file}.txt'
+            runtime.copy_to(data_path, '/workspace')
 
-        if instance['instance'] == '02_specific_motor_type':
+        if cfg.instance == '02_specific_motor_type':
+            """
+            A common case for a specific Motor type with a couple of similar tickets and new
+            similar questions defined by us which should result in the same answer
+            """
+            data_path = base_path / cfg.instance
+            for file in (data_path).glob('*'):
+                runtime.copy_to(file, '/workspace')
+
+        if cfg.instance == '03_context':
+            """
+            Tickets which relate to the additional documents
+            """
+            additional_docs_path = base_path / f"{cfg.instance}/additional_documents"
+            for file in additional_docs_path.glob('*'):
+                runtime.copy_to(file, '/workspace/additional_documents')
+            data_path = base_path / cfg.instance / f'{cfg.ticket_file}.txt'
+            runtime.copy_to(data_path, '/workspace')
+
+        if cfg.instance == '04_specific_log_file':
+            """
+            Common questions to a specific logifle.
+            """
+            data_path = base_path / cfg.instance / f'{cfg.ticket_file}.txt'
+            runtime.copy_to(data_path, '/workspace')
 
     # Check the database is copied
     action = CmdRunAction(command='cd /workspace && ls -l')
@@ -140,28 +166,7 @@ def complete_runtime(
     If you need to do something in the sandbox to get the correctness metric after
     the agent has run, modify this function.
     """
-    logger.info(f'{"-" * 50} BEGIN Runtime Completion Fn {"-" * 50}')
-    obs: CmdOutputObservation
-
-    test_result = {}
-
-    action = CmdRunAction(command='cd /workspace')
-    logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = runtime.run_action(action)
-
-    assert obs.exit_code == 0
-
-    action = CmdRunAction(command=f'cat pred_programs/{instance.pred_program_name}')
-    logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = runtime.run_action(action)
-
-    if obs.exit_code == 0:
-        test_result = {'program': obs.content}
-    else:
-        test_result = {'program': 'ERROR'}
-
-    logger.info(f'{"-" * 50} END Runtime Completion Fn {"-" * 50}')
-    return test_result
+    return None
 
 
 def process_instance(
@@ -171,11 +176,6 @@ def process_instance(
     cfg: OmegaConf = None,
 ) -> EvalOutput:
     instance_id = instance.instance_id  # .replace('/', '__')
-
-    # Track whether the agent violated the sklearn usage constraint.
-    # This value is reported in the final `test_result` section.  Initialise it
-    # to ``False`` so that a violation is only flagged when the relevant error
-    # message is detected.
 
     # Set up the logger properly, so you can run multi-processing to parallelize the evaluation
     if reset_logger:
@@ -189,8 +189,26 @@ def process_instance(
     instruction = ''
 
     if instance['class_type'] == 'logs':
-        instruction = f"""You are an expert providing assistance about a support ticket. The ticket includes a logfile that contains the information about the issue. You need to identify the issue and suggest solutions for it. The ticket is located at /workspace/{cfg.ticket_file}.txt.
-        """
+
+        if cfg.instance == '01_log_solution_within_1000':
+            instruction = f"""You are an expert providing assistance about a support ticket. The ticket includes a logfile that contains the information about the issue. You need to identify the issue and suggest solutions for it. The ticket is located at /workspace/{cfg.ticket_file}.txt.
+            """
+
+        if cfg.instance == '02_specific_motor_type':
+            instruction = f"""You are an expert providing assistance about support tickets. Ticket and log files are located in /workspace. You need to identify the issue and suggest solutions for it."""
+
+        if cfg.instance == '03_context':
+            instruction = f"""You are an expert providing assistance about a support ticket. The ticket is located at /workspace/{cfg.ticket_file}.txt. Additionally, there are addtional documents that might be helpful for understanding the ticket. These documents are located in /workspace/additional_documents. You need to identify the issue and suggest solutions for it."""
+
+        if cfg.instance == '04_specific_log_file':
+            instruction = f"""You are an expert providing assistance about a support ticket. The ticket includes a logfile that contains the information about the issue. You need to identify the issue and suggest solutions for it. The ticket is located at /workspace/{cfg.ticket_file}.txt.
+            """
+
+        instruction += f"""\n If you provide recommendations for a solution, be as specific as possible."""
+
+        # instruction += f"""\n Provide your answer in the following format: \n <issue> </issue> \n <solution> </solution>"""
+
+        # instruction += f"""\n Only provide your final answer and do not show 'Final Thought'"""
 
     if cfg.sid:
         sid = cfg.sid
@@ -216,6 +234,7 @@ def process_instance(
         )
     )
 
+    # AD: What is this?
     [code.code for code in state.history if isinstance(code, IPythonRunCellAction)]
 
     # ======= Attempt to evaluate the agent's edits =======
@@ -230,6 +249,7 @@ def process_instance(
     # history is now available as a stream of events, rather than list of pairs of (Action, Observation)
     # for compatibility with the existing output format, we can remake the pairs here
 
+    # AD: Still needed?
     for x in state.history:
         if 'content' in x.__dict__:
             text = x.content

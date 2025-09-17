@@ -9,7 +9,6 @@ Use this tool when:
 - You cannot proceed further due to technical limitations or missing information
 
 The message should include:
-- A clear summary of actions taken and their results
 - Any next steps for the user
 - Explanation if you're unable to complete the task
 - Any follow-up questions if more information is needed
@@ -28,7 +27,7 @@ FinishTool = ChatCompletionToolParam(
             'properties': {
                 'message': {
                     'type': 'string',
-                    'description': 'Final message to send to the user',
+                    'description': 'Final message to send to the user.',
                 },
                 'task_completed': {
                     'type': 'string',
