@@ -109,10 +109,9 @@ def initialize_runtime(
     logger.info(f'{"-" * 50} BEGIN Runtime Initialization Fn {"-" * 50}')
     obs: CmdOutputObservation
 
-    base_path = Path(f'evaluation/benchmarks/maxon/tasks/')
+    base_path = Path('evaluation/benchmarks/maxon/tasks/')
 
     if instance['class_type'] == 'logs':
-
         if cfg.instance == '01_log_solution_within_1000':
             """
             Tickets where the solution can be found within the attached 1000 lines of logfile and the request -
@@ -134,7 +133,7 @@ def initialize_runtime(
             """
             Tickets which relate to the additional documents
             """
-            additional_docs_path = base_path / f"{cfg.instance}/additional_documents"
+            additional_docs_path = base_path / f'{cfg.instance}/additional_documents'
             for file in additional_docs_path.glob('*'):
                 runtime.copy_to(file, '/workspace/additional_documents')
             data_path = base_path / cfg.instance / f'{cfg.ticket_file}.txt'
@@ -189,13 +188,12 @@ def process_instance(
     instruction = ''
 
     if instance['class_type'] == 'logs':
-
         if cfg.instance == '01_log_solution_within_1000':
             instruction = f"""You are an expert providing assistance about a support ticket. The ticket includes a logfile that contains the information about the issue. You need to identify the issue and suggest solutions for it. The ticket is located at /workspace/{cfg.ticket_file}.txt.
             """
 
         if cfg.instance == '02_specific_motor_type':
-            instruction = f"""You are an expert providing assistance about support tickets. Ticket and log files are located in /workspace. You need to identify the issue and suggest solutions for it."""
+            instruction = """You are an expert providing assistance about support tickets. Ticket and log files are located in /workspace. You need to identify the issue and suggest solutions for it."""
 
         if cfg.instance == '03_context':
             instruction = f"""You are an expert providing assistance about a support ticket. The ticket is located at /workspace/{cfg.ticket_file}.txt. Additionally, there are addtional documents that might be helpful for understanding the ticket. These documents are located in /workspace/additional_documents. You need to identify the issue and suggest solutions for it."""
@@ -204,7 +202,7 @@ def process_instance(
             instruction = f"""You are an expert providing assistance about a support ticket. The ticket includes a logfile that contains the information about the issue. You need to identify the issue and suggest solutions for it. The ticket is located at /workspace/{cfg.ticket_file}.txt.
             """
 
-        instruction += f"""\n If you provide recommendations for a solution, be as specific as possible."""
+        instruction += """\n If you provide recommendations for a solution, be as specific as possible."""
 
         # instruction += f"""\n Provide your answer in the following format: \n <issue> </issue> \n <solution> </solution>"""
 
