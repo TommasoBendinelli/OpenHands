@@ -1,0 +1,8 @@
+openai:
+  model: "gpt-4"
+timestamp: ${now:%Y-%m-%d_%H-%M-%S}
+
+num_questions: 10
+task_name: "automatic_climate_control_system"
+fault_description: "The first step is to realize that the user controls the car’s temperature, and that we are recording, among other things, the temperature inside the car. The anomaly is quite easy to detect, as at a certain point the internal temperature diverges from the set temperature. To understand what is happening, we notice that around the time this divergence occurs, the fan speed and AC exit temperature start behaving suspiciously. From the diagram, it becomes clear that the fan speed rate depends on the AC exit temperature, which suggests that the problem originates there. Since the variables Engine Speed and Torque Comp remain constant, the issue must come from AC_Control. Looking inside this diagram, we find Efficiency, which appears to be the actual culprit."
+prompt: ""

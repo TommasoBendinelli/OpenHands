@@ -1,0 +1,6 @@
+model: "gpt-4"
+timestamp: ${now:%Y-%m-%d_%H-%M-%S}
+
+num_questions: 5
+num_words: 500
+num_stories: 2
