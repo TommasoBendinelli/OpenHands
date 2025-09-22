@@ -3,13 +3,14 @@ import random
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-import json
+
 import anthropic
 import hydra
+import pandas as pd
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 from openai import OpenAI
-from hydra.core.hydra_config import HydraConfig
-import pandas as pd
+
 
 def get_folder_path_name(cfg: OmegaConf):
     try:
@@ -351,6 +352,7 @@ def create_story_and_questions(topic: str, num_words, num_questions, model) -> s
     reply = llm_call(model, prompt_text)
     return str(reply)
 
+
 def compute_question_index(story_index, number_of_stories):
     if story_index < number_of_stories - 1:
         question_index = story_index + 1
@@ -358,24 +360,26 @@ def compute_question_index(story_index, number_of_stories):
         question_index = 0
     return question_index
 
+
 # The story should be about {spec['topic']} and told in a {spec['tone']} {spec['pov']} {spec['shape']} format.
 
 
 @hydra.main(config_path='.', config_name='config')
 def main(cfg: DictConfig):
-    assert cfg.num_stories > 1, "In order to swap stories we need more than 1 story"
+    assert cfg.num_stories > 1, 'In order to swap stories we need more than 1 story'
     eval_output_dir = Path(
         f'/home/tommaso/repo/OpenHands/bias_check/outputs/{cfg.timestamp.split("_")[0]}'
     )
 
     metadata_dir = eval_output_dir / get_folder_path_name(cfg) / cfg.model
     metadata_dir.mkdir(parents=True, exist_ok=True)
+    Path(metadata_dir / '.hydra').mkdir(parents=True, exist_ok=True)
 
     for story_index in range(cfg.num_stories):
         rng = random.Random(story_index)
         topic = rng.choice(story_topics)
         story_with_questions = create_story_and_questions(
-            topic, cfg.num_words, cfg.num_questions, cfg.model
+            topic, cfg.num_words, cfg.num_questions, cfg.generator_model
         )
 
         with open(metadata_dir / f'story_questions_{story_index}.txt', 'w') as f:
@@ -406,10 +410,9 @@ def main(cfg: DictConfig):
     for story_index, parsed in enumerate(parsed_files):
         story = parsed['story']
 
-        questions_index = compute_question_index(story_index,len(parsed_files))
+        questions_index = compute_question_index(story_index, len(parsed_files))
         # Get questions from next story
         next_file_content = parsed_files[questions_index]
-
 
         # Get all questions, correct answer and source from next_file_content
         question_answers = []
@@ -430,7 +433,7 @@ def main(cfg: DictConfig):
         with open(metadata_dir / f'prompt_{story_index}.txt', 'w') as f:
             f.write(prompt_text)
 
-        reply = llm_call(cfg.model, prompt_text)
+        reply = llm_call(cfg.examinee_model, prompt_text)
         # Save LLM reply to file
         with open(metadata_dir / f'llm_reply_{story_index}.txt', 'w') as f:
             f.write(reply)
@@ -442,7 +445,7 @@ def main(cfg: DictConfig):
         performance.append(
             {
                 'story_index': story_index,
-                'questions_index':questions_index,
+                'questions_index': questions_index,
                 'num_questions': len(question_answers),
                 'num_correct': sum(1 for r in results if r['is_correct']),
                 'accuracy': accuracy,
@@ -450,11 +453,10 @@ def main(cfg: DictConfig):
         )
 
     df = pd.DataFrame(performance)
-    df.to_csv("results.csv")
+    df.to_csv('results.csv')
 
-    print(f"Accuracy: {df['accuracy'].mean()}")
+    print(f'Accuracy: {df["accuracy"].mean()}')
 
-    Path(metadata_dir / '.hydra').mkdir(parents=True, exist_ok=True)
     with open(metadata_dir / '.hydra' / 'config.yaml', 'w') as f:
         OmegaConf.save(cfg, f)
 

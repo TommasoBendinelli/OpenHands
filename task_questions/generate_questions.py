@@ -1,9 +1,9 @@
-from openai import OpenAI
-import hydra
-from omegaconf import OmegaConf
-from omegaconf import DictConfig
-from pathlib import Path
 import os
+from pathlib import Path
+
+import hydra
+from omegaconf import DictConfig, OmegaConf
+from openai import OpenAI
 
 
 def get_folder_path_name(cfg: OmegaConf):
@@ -16,14 +16,13 @@ def get_folder_path_name(cfg: OmegaConf):
 
 
 def model_client(model_name: str):
-    if "gpt" in model_name:
+    if 'gpt' in model_name:
         client = OpenAI()
     return client
 
 
-@hydra.main(config_path=".", config_name="config")
+@hydra.main(config_path='.', config_name='config')
 def main(cfg: DictConfig):
-
     eval_output_dir = Path(
         f'/home/tommaso/repo/OpenHands/task_questions/outputs/{cfg.timestamp.split("_")[0]}'
     )
@@ -33,7 +32,7 @@ def main(cfg: DictConfig):
     The question should be clear, concise, and relevant to the fault described. Create {cfg.num_questions} questions and list them numerically.
     Your answer should only contain the questions."""
 
-    prompt = f"{basic_instruction}\n\nFault description: {cfg.fault_description}"
+    prompt = f'{basic_instruction}\n\nFault description: {cfg.fault_description}'
     cfg.prompt = prompt
 
     client = model_client(cfg.openai.model)
@@ -42,10 +41,10 @@ def main(cfg: DictConfig):
         model=cfg.openai.model,
         input=[
             {
-                "role": "developer",
-                "content": "You are an expert on control systems.",
+                'role': 'developer',
+                'content': 'You are an expert on control systems.',
             },
-            {"role": "user", "content": prompt},
+            {'role': 'user', 'content': prompt},
         ],
         # temperature=cfg.openai.temperature,
     )
@@ -63,5 +62,5 @@ def main(cfg: DictConfig):
         f.write(reply)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
