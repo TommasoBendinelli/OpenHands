@@ -170,6 +170,8 @@ def complete_runtime(state: State) -> dict[str, Any]:
 
     pattern = r'Signal:\s*"([^"]+)"\s+Timestamp:\s*"([^"]+)"'
 
+    breakpoint()
+
     # Latest message action
     proposed_solution = state.history[len(state.history) - 1].final_thought
 
@@ -205,8 +207,20 @@ def process_instance(
     if instance['class_type'] == 'simulink':
         # instruction = f"""You are given a data file from a control system. One of them is faulty. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
 
-        instruction = """You are given data from a control system. The data contains a fault. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
-        """
+        if 'bouncing_ball' in cfg.simulation_example:
+            # instruction = """
+            # You are given a data file from a control system. During the simulation, at a certain point something not realistic happens. Can you pinpoint what happens and when? Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
+            # """
+            instruction = f"""
+            You are given a data file from a control system. During the simulation, at a certain point something not realistic happens. Choose one of the following answers:
+            A) There is nothing wrong with the system
+            B) The gravity constant is varies over time
+            C) The coefficient of restiution is implausible
+            D) The intial position is wrong
+            """
+        else:
+            instruction = """You are given data from a control system. The data contains a fault. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
+            """
 
         if cfg.level == 'data_features_diagram':
             # instruction += 'The correct simulation data is in correct_simulation.csv, the faulty simulation data is in fault_simulation.csv and the diagram of the control system is in diagram.png.'
@@ -251,7 +265,8 @@ def process_instance(
     [code.code for code in state.history if isinstance(code, IPythonRunCellAction)]
 
     # ======= Attempt to evaluate the agent's edits =======
-    evaluation_result = complete_runtime(state)
+    # evaluation_result = complete_runtime(state)
+    evaluation_result = {}
 
     # If you are working on some simpler benchmark that only evaluates the final model output (e.g., in a MessageAction)
     # You can simply get the LAST `MessageAction` from the returned `state.history` and parse it for evaluation.

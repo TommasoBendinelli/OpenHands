@@ -178,7 +178,7 @@ def find_available_runs(root: str) -> list[Path]:
     if not root_path.exists():
         return []
     # Look for any performance.json within a few levels
-    candidates = list(root_path.rglob('performance.json'))
+    candidates = list(root_path.rglob('results.csv'))
     # Sort by modified time (newest first)
     candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     return [c.parent for c in candidates]
@@ -203,9 +203,9 @@ def load_run(path: Path) -> dict:
     where 'rows' is a per-question dataframe-able list of dicts.
     """
     path = Path(path)
-    perf_path = path / 'performance.json'
+    perf_path = path / 'results.csv'
     if not perf_path.exists():
-        raise FileNotFoundError(f'Missing performance.json in {path}')
+        raise FileNotFoundError(f'Missing results.csv in {path}')
 
     with open(perf_path, 'r') as f:
         performance = json.load(f)
@@ -337,6 +337,7 @@ DEFAULT_ROOT = '/home/tommaso/repo/OpenHands/bias_check/outputs'
 root_dir = st.sidebar.text_input('Root outputs directory', value=DEFAULT_ROOT)
 
 runs = find_available_runs(root_dir)
+
 if not runs:
     st.sidebar.warning(
         'No runs found. Make sure the path points to a directory that contains your generated outputs.'

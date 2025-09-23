@@ -366,12 +366,19 @@ def compute_question_index(story_index, number_of_stories):
 
 @hydra.main(config_path='.', config_name='config')
 def main(cfg: DictConfig):
+    examinee_model = cfg.examinee_model
+    generator_model = cfg.generator_model
+
     assert cfg.num_stories > 1, 'In order to swap stories we need more than 1 story'
     eval_output_dir = Path(
         f'/home/tommaso/repo/OpenHands/bias_check/outputs/{cfg.timestamp.split("_")[0]}'
     )
 
-    metadata_dir = eval_output_dir / get_folder_path_name(cfg) / cfg.model
+    metadata_dir = (
+        eval_output_dir
+        / get_folder_path_name(cfg)
+        / f"{examinee_model}__{generator_model}"
+    )
     metadata_dir.mkdir(parents=True, exist_ok=True)
     Path(metadata_dir / '.hydra').mkdir(parents=True, exist_ok=True)
 
@@ -449,11 +456,15 @@ def main(cfg: DictConfig):
                 'num_questions': len(question_answers),
                 'num_correct': sum(1 for r in results if r['is_correct']),
                 'accuracy': accuracy,
+                'generator_model': generator_model,
+                'examinee_model': examinee_model,
             }
         )
 
     df = pd.DataFrame(performance)
-    df.to_csv('results.csv')
+
+    # Save results to csv in metadata_dir
+    df.to_csv(metadata_dir / 'results.csv', index=False)
 
     print(f'Accuracy: {df["accuracy"].mean()}')
 
