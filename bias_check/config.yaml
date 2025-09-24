@@ -1,6 +1,10 @@
-model: "gpt-4"
+generator_model: "openai/gpt-5"
+examinee_model: "openai/gpt-5" # You can set multiple models with []
 timestamp: ${now:%Y-%m-%d_%H-%M-%S}
 
 num_questions: 5
-num_words: 500
+num_words: 250
 num_stories: 2
+do_different_questions_permutations: True
+one_question_at_time: True
+idenfitier: debug

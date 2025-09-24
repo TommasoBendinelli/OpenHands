@@ -147,7 +147,7 @@ def parse_story_and_questions(raw: str) -> dict:
     return {'story': story, 'questions': questions}
 
 
-def build_prompt(question_answers, story):
+def build_prompt(question_answers, story,do_different_questions_permutations=False):
     blocks = []
 
     # Instructions: compact answers only
@@ -377,7 +377,7 @@ def main(cfg: DictConfig):
     metadata_dir = (
         eval_output_dir
         / get_folder_path_name(cfg)
-        / f"{examinee_model}__{generator_model}"
+        / f'{examinee_model}__{generator_model}'
     )
     metadata_dir.mkdir(parents=True, exist_ok=True)
     Path(metadata_dir / '.hydra').mkdir(parents=True, exist_ok=True)
@@ -392,12 +392,6 @@ def main(cfg: DictConfig):
         with open(metadata_dir / f'story_questions_{story_index}.txt', 'w') as f:
             f.write(story_with_questions)
 
-        # if i == 0:
-        #     with open(metadata_dir / 'prompt_generation.txt', 'w') as f:
-        #         f.write(story_with_questions)
-
-    # Open all saved txt files
-    # metadata_dir = eval_output_dir / get_folder_path_name(cfg) / cfg.model
     files = sorted(metadata_dir.glob('story_questions_*.txt'))
 
     parsed_files = []  # dict['story','question']
@@ -433,8 +427,7 @@ def main(cfg: DictConfig):
                     'correct_answer': item['correct_answer'],
                 }
             )
-
-        prompt_text = build_prompt(question_answers, story)
+        prompt_text = build_prompt(question_answers, story, cfg.do_different_questions_permutations)
 
         # Save prompt to file
         with open(metadata_dir / f'prompt_{story_index}.txt', 'w') as f:

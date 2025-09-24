@@ -228,11 +228,12 @@ class CodeActAgentSimulink(Agent):
 
         latest_agent_message = state.get_last_agent_message()
 
-        # Check if <sol> </sol> is in the latest user message, if so, finish the agent
+        # Check if Final answer is in the latest user message, if so, finish the agent
+        # breakpoint()
         if (
             latest_agent_message
             and isinstance(latest_agent_message, MessageAction)
-            and '<sol>' in latest_agent_message.content
+            and 'Final answer' in latest_agent_message.content
         ):
             breakpoint()
             logger.info('Model provided solution, finishing the agent.')

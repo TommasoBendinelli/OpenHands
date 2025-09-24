@@ -3,6 +3,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any
+import json
 
 import hydra
 import pandas as pd
@@ -36,6 +37,7 @@ from openhands.runtime.base import Runtime
 from openhands.utils.async_utils import call_async_from_sync
 
 from .benchmark_additions import kill_instance, safe_append
+from .evaluation import evaluate_model_answer
 
 AGENT_CLS_TO_FAKE_USER_RESPONSE_FN = {
     'CodeActAgentSimulink': codeact_user_response,
@@ -115,7 +117,7 @@ def initialize_runtime(
             f'evaluation/benchmarks/simulink/tasks/{cfg.simulation_example}/'
         )
         if cfg.level == 'data_features_diagram':
-            path_time_series_data = base_path / 'data.parquet'
+            path_time_series_data = base_path / 'data.csv'
             runtime.copy_to(path_time_series_data, '/workspace')
 
             # copy all files from /diagrams
@@ -158,31 +160,34 @@ def initialize_runtime(
     logger.info(f'{"-" * 50} END Runtime Initialization Fn {"-" * 50}')
 
 
-def complete_runtime(state: State) -> dict[str, Any]:
+def complete_runtime(state: State, metadata_task: json) -> dict[str, Any]:
     """Complete the runtime for the agent.
 
     This function is called before the runtime is used to run the agent.
     If you need to do something in the sandbox to get the correctness metric after
     the agent has run, modify this function.
     """
-    test_result = {}
-    # breakpoint()
-
-    pattern = r'Signal:\s*"([^"]+)"\s+Timestamp:\s*"([^"]+)"'
+    model_answer = {}
 
     breakpoint()
 
     # Latest message action
     proposed_solution = state.history[len(state.history) - 1].final_thought
 
-    match = re.search(pattern, proposed_solution)
+    match = re.search(r"Final answer:.*$", proposed_solution, re.MULTILINE)
     if match:
-        signal = match.group(1)
-        timestamp = match.group(2)
+        complete_answer = match.group(0)
 
-    test_result = {'signal': signal, 'timestamp': timestamp}
+    model_answer = complete_answer.split("Final answer:")[1].strip()
 
-    return test_result
+    # TODO: Include option letter directly in the possible answers and then check for the letter only
+    # Remove letter if included
+    model_answer = re.sub(r"\b[A-D]\)\s*", "", model_answer)
+
+    # Call script to evaluate the answer
+    result = evaluate_model_answer(model_answer, metadata_task)
+
+    return result
 
 
 def process_instance(
@@ -192,6 +197,8 @@ def process_instance(
     cfg: OmegaConf = None,
 ) -> EvalOutput:
     instance_id = instance.instance_id  # .replace('/', '__')
+
+    base_path = Path(f'evaluation/benchmarks/simulink/tasks/{cfg.simulation_example}/')
 
     # Set up the logger properly, so you can run multi-processing to parallelize the evaluation
     if reset_logger:
@@ -207,19 +214,27 @@ def process_instance(
     if instance['class_type'] == 'simulink':
         # instruction = f"""You are given a data file from a control system. One of them is faulty. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
 
-        if 'bouncing_ball' in cfg.simulation_example:
+        if 'BouncingBall' in cfg.simulation_example:
             # instruction = """
             # You are given a data file from a control system. During the simulation, at a certain point something not realistic happens. Can you pinpoint what happens and when? Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
             # """
-            instruction = f"""
-            You are given a data file from a control system. During the simulation, at a certain point something not realistic happens. Choose one of the following answers:
-            A) There is nothing wrong with the system
-            B) The gravity constant is varies over time
-            C) The coefficient of restiution is implausible
-            D) The intial position is wrong
-            """
+
+            # Open metadata.json in base_path and read the content
+            with open(base_path / 'metadata_task.json', 'r') as f:
+                metadata_task = json.load(f)
+
+            # Format choices A), B), ...
+            instruction = f"""{metadata_task['question']} \n {"\n".join(f"{chr(65+i)}) {msg}" for i, msg in enumerate(metadata_task['options']))}"""
+
+            # instruction += f"""\n Provide the answer by outputing Final answer: and selecting one of the options and filling in the missing information in the curly brackets {{}}"""
+
+            instruction += (
+                "\n Please provide your response in the following format:\n"
+                "Final answer: <selected option text with the missing information filled inside the curly brackets {}>"
+            )
+
         else:
-            instruction = """You are given data from a control system. The data contains a fault. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
+            instruction = """You are given data from a control system. The data contains a fault. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> v.
             """
 
         if cfg.level == 'data_features_diagram':
@@ -264,9 +279,23 @@ def process_instance(
     # AD: What is this?
     [code.code for code in state.history if isinstance(code, IPythonRunCellAction)]
 
+    # Open metadata.json in base_path and read the content
+    with open(base_path / 'metadata_task.json', 'r') as f:
+        metadata_task = json.load(f)
+
     # ======= Attempt to evaluate the agent's edits =======
-    # evaluation_result = complete_runtime(state)
-    evaluation_result = {}
+    evaluation_result = complete_runtime(state, metadata_task)
+
+    # Save the evaluation result
+    eval_output_dir = Path(
+        f'evaluation/evaluation_outputs/outputs/{cfg.timestamp.split("_")[0]}'
+    )
+    results_dir = eval_output_dir / get_folder_path_name(cfg)
+
+    with open(results_dir / "results.json", "w") as f:
+        json.dump(evaluation_result, f)
+
+    # evaluation_result = {}
 
     # If you are working on some simpler benchmark that only evaluates the final model output (e.g., in a MessageAction)
     # You can simply get the LAST `MessageAction` from the returned `state.history` and parse it for evaluation.

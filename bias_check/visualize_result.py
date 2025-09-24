@@ -134,10 +134,10 @@ def parse_llm_answers(
         blk = re.split(r'^\s*=== END ===\s*$', blk, maxsplit=1, flags=re.MULTILINE)[0]
         m_id = re.search(r'^\s*ID:\s*(.+?)\s*$', blk, flags=re.MULTILINE)
         m_ans = re.search(
-            r'^\s*YOUR ANSWER:\s*([ABCD])\s*(?:[).:])?\s$*',
-            blk,
-            flags=re.IGNORECASE | re.MULTILINE,
-        )
+                r'^\s*YOUR ANSWER:\s*([ABCD])\s*(?:[).:])?\s*$',
+                blk,
+                flags=re.IGNORECASE | re.MULTILINE,
+            )
         if m_id and m_ans:
             qid = m_id.group(1).strip()
             ans_map[qid] = m_ans.group(1).upper()
@@ -204,11 +204,14 @@ def load_run(path: Path) -> dict:
     """
     path = Path(path)
     perf_path = path / 'results.csv'
-    if not perf_path.exists():
-        raise FileNotFoundError(f'Missing results.csv in {path}')
+    df = pd.read_csv(perf_path)
+    performance = df["accuracy"].mean()
+    # if not perf_path.exists():
+    #     raise FileNotFoundError(f'Missing results.csv in {path}')
 
-    with open(perf_path, 'r') as f:
-        performance = json.load(f)
+    # with open(perf_path, 'r') as f:
+    #     performance = json.load(f)
+
 
     cfg_path = path / '.hydra' / 'config.yaml'
     cfg = read_yaml_safe(cfg_path) if cfg_path.exists() else None
