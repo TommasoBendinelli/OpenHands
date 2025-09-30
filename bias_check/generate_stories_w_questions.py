@@ -147,8 +147,8 @@ def parse_story_and_questions(raw: str) -> dict:
     return {'story': story, 'questions': questions}
 
 
-def build_prompt(question_answers, story,do_different_questions_permutations=False):
-    blocks = []
+def build_prompt(question_answers, story, do_different_questions_permutations=False, one_question_at_the_time=False):
+
 
     # Instructions: compact answers only
     instructions = (
@@ -162,28 +162,56 @@ def build_prompt(question_answers, story,do_different_questions_permutations=Fal
         "If you don't know the answer, nevertheless pick one of A, B, C, or D."
     )
 
-    # Story section at the top
-    blocks.append('=== STORY ===')
-    blocks.append(story.strip())
-    blocks.append('=== END STORY ===\n')
+    if one_question_at_the_time:
+        prompts = []
+        for item in question_answers:
+            q_lines = []
+            # Story section at the top
+            q_lines.append('=== STORY ===')
+            q_lines.append(story.strip())
+            q_lines.append('=== END STORY ===\n')
 
-    # Questions (keep as-is for context)
-    for item in question_answers:
-        q_lines = []
-        q_lines.append('=== QUESTION ===')
-        q_lines.append(f'ID: {item["id"]}')
-        q_lines.append(f'TEXT: {item["text"]}')
+            q_lines.append('=== QUESTION ===')
+            q_lines.append(f'TEXT: {item["text"]}')
 
-        labels = ['A', 'B', 'C', 'D']
-        for lab, opt in zip(labels, item['answers'][:4]):
-            cleaned = opt.strip()
-            if cleaned.startswith(f'{lab}) '):
-                cleaned = cleaned[len(f'{lab}) ') :]
-            q_lines.append(f'OPTION {lab}: {cleaned}')
+            labels = ['A', 'B', 'C', 'D']
+            for lab, opt in zip(labels, item['answers'][:4]):
+                cleaned = opt.strip()
+                if cleaned.startswith(f'{lab}) '):
+                    cleaned = cleaned[len(f'{lab}) ') :]
+                q_lines.append(f'OPTION {lab}: {cleaned}')
 
-        # No placeholder line (saves tokens in the model's output)
-        q_lines.append('=== END ===')
-        blocks.append('\n'.join(q_lines))
+            # No placeholder line (saves tokens in the model's output)
+            q_lines.append('=== END ===')
+            q_lines.append('\n'.join(q_lines))
+            prompt = instructions + '\n\n' + '\n\n'.join(q_lines)
+            prompts.append(prompt)
+
+        return prompts
+    else:
+        blocks = []
+        # Story section at the top
+        blocks.append('=== STORY ===')
+        blocks.append(story.strip())
+        blocks.append('=== END STORY ===\n')
+
+        # Questions (keep as-is for context)
+        for item in question_answers:
+            q_lines = []
+            q_lines.append('=== QUESTION ===')
+            q_lines.append(f'ID: {item["id"]}')
+            q_lines.append(f'TEXT: {item["text"]}')
+
+            labels = ['A', 'B', 'C', 'D']
+            for lab, opt in zip(labels, item['answers'][:4]):
+                cleaned = opt.strip()
+                if cleaned.startswith(f'{lab}) '):
+                    cleaned = cleaned[len(f'{lab}) ') :]
+                q_lines.append(f'OPTION {lab}: {cleaned}')
+
+            # No placeholder line (saves tokens in the model's output)
+            q_lines.append('=== END ===')
+            blocks.append('\n'.join(q_lines))
 
     return instructions + '\n\n' + '\n\n'.join(blocks)
 
@@ -271,31 +299,21 @@ def parse_llm_answers(output_text: str, question_answers: list[dict]) -> dict[st
     return filled
 
 
-def correct_answer_map(question_answers):
-    # {id: 'A'|'B'|'C'|'D'}
-    return {item['id']: item['correct_answer'].upper() for item in question_answers}
+def compute_results(user_answers: dict, question_answer: dict):
+    qid, gt = question_answer["id"], question_answer["correct_answer"]
+    #for qid, true_letter in gt.items():
+    user_letter = user_answers.get(qid)
+    is_correct = user_letter == gt
+    result = (
+        {
+            'id': qid,
+            'llm_answer': user_letter,
+            'correct_answer': gt,
+            'is_correct': is_correct,
+        }
+    )
 
-
-def compare_answers(user_answers, question_answers):
-    gt = correct_answer_map(question_answers)
-    results = []
-    correct = 0
-    total = len(gt)
-    for qid, true_letter in gt.items():
-        user_letter = user_answers.get(qid)
-        is_correct = user_letter == true_letter
-        results.append(
-            {
-                'id': qid,
-                'llm_answer': user_letter,
-                'correct_answer': true_letter,
-                'is_correct': is_correct,
-            }
-        )
-        if is_correct:
-            correct += 1
-    accuracy = correct / total if total else 0.0
-    return results, accuracy
+    return result
 
 
 story_topics = [
@@ -424,37 +442,52 @@ def main(cfg: DictConfig):
                     'text': item['text'],
                     'answers': item['answers'],
                     'source': item['source'],
-                    'correct_answer': item['correct_answer'],
+                    'correct_answer': item['correct_answer'].upper(),
                 }
             )
-        prompt_text = build_prompt(question_answers, story, cfg.do_different_questions_permutations)
 
-        # Save prompt to file
-        with open(metadata_dir / f'prompt_{story_index}.txt', 'w') as f:
-            f.write(prompt_text)
-
-        reply = llm_call(cfg.examinee_model, prompt_text)
-        # Save LLM reply to file
-        with open(metadata_dir / f'llm_reply_{story_index}.txt', 'w') as f:
-            f.write(reply)
-
-        llm_answers = parse_llm_answers(reply, question_answers)
-
-        results, accuracy = compare_answers(llm_answers, question_answers)
-
-        performance.append(
-            {
-                'story_index': story_index,
-                'questions_index': questions_index,
-                'num_questions': len(question_answers),
-                'num_correct': sum(1 for r in results if r['is_correct']),
-                'accuracy': accuracy,
-                'generator_model': generator_model,
-                'examinee_model': examinee_model,
-            }
+        prompts = build_prompt(
+            question_answers, story, cfg.do_different_questions_permutations, cfg.one_question_at_time
         )
 
-    df = pd.DataFrame(performance)
+        if cfg.one_question_at_time == False:
+            assert len(prompts) == 1
+
+
+        # Save prompt to file
+        for idx, prompt in enumerate(prompts):
+            with open(metadata_dir / f'prompt_{story_index}_prompt_{idx}.txt', 'w') as f:
+                f.write(prompt)
+        replies = []
+        for idx, prompt in enumerate(prompts):
+            reply = llm_call(cfg.examinee_model, prompt)
+
+
+            # Save LLM reply to file
+            with open(metadata_dir / f'llm_reply_{story_index}_prompt_{idx}.txt', 'w') as f:
+                f.write(reply)
+
+            replies.append(reply)
+
+        results = []
+        for idx, reply_question_answer in enumerate(zip(replies,question_answers)):
+            reply, question_answer = reply_question_answer
+            llm_answer = parse_llm_answers(reply, question_answers)
+
+            result = compute_results(llm_answer, question_answer)
+            results.append(result)
+        # performance.append(
+        #     {
+        #         'story_index': story_index,
+        #         'questions_index': questions_index,
+        #         'num_questions': len(question_answers),
+        #         'num_correct': sum(1 for r in results if r['is_correct']),
+        #         'generator_model': generator_model,
+        #         'examinee_model': examinee_model,
+        #     }
+        # )
+    breakpoint()
+    df = pd.Dataframe(results)
 
     # Save results to csv in metadata_dir
     df.to_csv(metadata_dir / 'results.csv', index=False)

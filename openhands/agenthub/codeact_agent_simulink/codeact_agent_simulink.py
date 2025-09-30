@@ -235,7 +235,7 @@ class CodeActAgentSimulink(Agent):
             and isinstance(latest_agent_message, MessageAction)
             and 'Final answer' in latest_agent_message.content
         ):
-            breakpoint()
+            # breakpoint()
             logger.info('Model provided solution, finishing the agent.')
             return AgentFinishAction(latest_agent_message.content)
 

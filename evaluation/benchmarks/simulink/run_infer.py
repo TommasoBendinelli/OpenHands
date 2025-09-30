@@ -1,9 +1,9 @@
 import asyncio
+import json
 import os
 import re
 from pathlib import Path
 from typing import Any
-import json
 
 import hydra
 import pandas as pd
@@ -121,34 +121,37 @@ def initialize_runtime(
             runtime.copy_to(path_time_series_data, '/workspace')
 
             # copy all files from /diagrams
-            for file in (base_path / 'diagrams').glob('*'):
+            for file in (base_path / 'diagram').glob('*'):
+                # Exclude files with .mat ending
+                if file.suffix == '.mat':
+                    continue
                 runtime.copy_to(file, '/workspace/diagrams')
 
             logger.info(
                 'Level 1 Context: Time series data + Feature names + Simulink diagrams'
             )
 
-        elif cfg.level == 'data_features_system_description':
-            path_correct_simulation = base_path / 'correct_simulation.csv'
-            path_fault_simulation = base_path / 'fault_simulation.csv'
-            path_description = base_path / 'system_description.txt'
-            runtime.copy_to(path_correct_simulation, '/workspace')
-            runtime.copy_to(path_fault_simulation, '/workspace')
-            runtime.copy_to(path_description, '/workspace')
-            logger.info(
-                'Level 2 Context: Time series data + Feature names + (High-level description of the control system)'
-            )
+        # elif cfg.level == 'data_features_system_description':
+        #     path_correct_simulation = base_path / 'correct_simulation.csv'
+        #     path_fault_simulation = base_path / 'fault_simulation.csv'
+        #     path_description = base_path / 'system_description.txt'
+        #     runtime.copy_to(path_correct_simulation, '/workspace')
+        #     runtime.copy_to(path_fault_simulation, '/workspace')
+        #     runtime.copy_to(path_description, '/workspace')
+        #     logger.info(
+        #         'Level 2 Context: Time series data + Feature names + (High-level description of the control system)'
+        #     )
 
-        elif cfg.level == 'numerical_data_only':
-            path_correct_simulation = (
-                base_path / 'correct_simulation_numerical_data_only.csv'
-            )
-            path_fault_simulation = (
-                base_path / 'fault_simulation_numerical_data_only.csv'
-            )
-            runtime.copy_to(path_correct_simulation, '/workspace')
-            runtime.copy_to(path_fault_simulation, '/workspace')
-            logger.info('Level 3 Context: Time series data (No feature names)')
+        # elif cfg.level == 'numerical_data_only':
+        #     path_correct_simulation = (
+        #         base_path / 'correct_simulation_numerical_data_only.csv'
+        #     )
+        #     path_fault_simulation = (
+        #         base_path / 'fault_simulation_numerical_data_only.csv'
+        #     )
+        #     runtime.copy_to(path_correct_simulation, '/workspace')
+        #     runtime.copy_to(path_fault_simulation, '/workspace')
+        #     logger.info('Level 3 Context: Time series data (No feature names)')
 
     # runtime.copy_to("/home/tommaso/repos/OpenHands/evaluation/benchmarks/ucr_dataset/test.py", '/workspace')
     # Check the database is copied
@@ -169,23 +172,30 @@ def complete_runtime(state: State, metadata_task: json) -> dict[str, Any]:
     """
     model_answer = {}
 
-    breakpoint()
+    # breakpoint()
 
-    # Latest message action
-    proposed_solution = state.history[len(state.history) - 1].final_thought
+    try:
+        # Latest message action
+        try:
+            proposed_solution = state.history[len(state.history) - 1].final_thought
+        except:
+            proposed_solution = state.history[len(state.history) - 1].content
 
-    match = re.search(r"Final answer:.*$", proposed_solution, re.MULTILINE)
-    if match:
-        complete_answer = match.group(0)
+        match = re.search(r'Final answer:.*$', proposed_solution, re.MULTILINE)
+        if match:
+            complete_answer = match.group(0)
 
-    model_answer = complete_answer.split("Final answer:")[1].strip()
+        model_answer = complete_answer.split('Final answer:')[1].strip()
 
-    # TODO: Include option letter directly in the possible answers and then check for the letter only
-    # Remove letter if included
-    model_answer = re.sub(r"\b[A-D]\)\s*", "", model_answer)
+        # TODO: Include option letter directly in the possible answers and then check for the letter only
+        # Remove letter if included
+        model_answer = re.sub(r'\b[A-D]\)\s*', '', model_answer)
 
-    # Call script to evaluate the answer
-    result = evaluate_model_answer(model_answer, metadata_task)
+        # Call script to evaluate the answer
+        result = evaluate_model_answer(model_answer, metadata_task)
+    except Exception as e:
+        logger.error(f'Error during evaluation: {e}')
+        result = {}
 
     return result
 
@@ -214,28 +224,21 @@ def process_instance(
     if instance['class_type'] == 'simulink':
         # instruction = f"""You are given a data file from a control system. One of them is faulty. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
 
-        if 'BouncingBall' in cfg.simulation_example:
-            # instruction = """
-            # You are given a data file from a control system. During the simulation, at a certain point something not realistic happens. Can you pinpoint what happens and when? Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> \n.
-            # """
+        # if 'BouncingBall' in cfg.simulation_example:
+        # Open metadata.json in base_path and read the content
+        with open(base_path / 'metadata_task.json', 'r') as f:
+            metadata_task = json.load(f)
 
-            # Open metadata.json in base_path and read the content
-            with open(base_path / 'metadata_task.json', 'r') as f:
-                metadata_task = json.load(f)
+        # Format choices A), B), ...
+        # instruction = f"""{metadata_task['question']} \n {'\n'.join(f'{chr(65 + i)}) {msg}' for i, msg in enumerate(metadata_task['options']))}"""
+        # TODO: Put improved instruction in the metadata
+        improved_prompt = "You are given a simulation and your task is to determine whether any physically implausible events occur at any time point. Select the correct answer in the list. Note that some answers also require you to return the time something happened"
+        instruction = f"""{improved_prompt} \n {'\n'.join(f'{chr(65 + i)}) {msg}' for i, msg in enumerate(metadata_task['options']))}"""
 
-            # Format choices A), B), ...
-            instruction = f"""{metadata_task['question']} \n {"\n".join(f"{chr(65+i)}) {msg}" for i, msg in enumerate(metadata_task['options']))}"""
-
-            # instruction += f"""\n Provide the answer by outputing Final answer: and selecting one of the options and filling in the missing information in the curly brackets {{}}"""
-
-            instruction += (
-                "\n Please provide your response in the following format:\n"
-                "Final answer: <selected option text with the missing information filled inside the curly brackets {}>"
-            )
-
-        else:
-            instruction = """You are given data from a control system. The data contains a fault. Your task is to identify the root cause of the fault. The files are located in /workspace/ Provide your answer in the following form: <sol> Signal: "faulty signal" Timestamp: "time of the fault" </sol> v.
-            """
+        instruction += (
+            '\n Please provide your response in the following format:\n'
+            'Final answer: <selected option text with the missing information filled inside the curly brackets {}> Do not remove the curly brackets {}.\n'
+        )
 
         if cfg.level == 'data_features_diagram':
             # instruction += 'The correct simulation data is in correct_simulation.csv, the faulty simulation data is in fault_simulation.csv and the diagram of the control system is in diagram.png.'
@@ -279,7 +282,7 @@ def process_instance(
     # AD: What is this?
     [code.code for code in state.history if isinstance(code, IPythonRunCellAction)]
 
-    # Open metadata.json in base_path and read the content
+    # Open metadata_task.json in base_path and read the content
     with open(base_path / 'metadata_task.json', 'r') as f:
         metadata_task = json.load(f)
 
@@ -292,10 +295,8 @@ def process_instance(
     )
     results_dir = eval_output_dir / get_folder_path_name(cfg)
 
-    with open(results_dir / "results.json", "w") as f:
+    with open(results_dir / 'results.json', 'w') as f:
         json.dump(evaluation_result, f)
-
-    # evaluation_result = {}
 
     # If you are working on some simpler benchmark that only evaluates the final model output (e.g., in a MessageAction)
     # You can simply get the LAST `MessageAction` from the returned `state.history` and parse it for evaluation.
@@ -402,6 +403,21 @@ def main(cfg):
         args.eval_note,
         args.eval_output_dir,
     )
+
+    # Open metadata_task.json in base_path and read the content
+    base_path = Path(f'evaluation/benchmarks/simulink/tasks/{cfg.simulation_example}/')
+    with open(base_path / 'metadata_task.json', 'r') as f:
+        metadata_task = json.load(f)
+
+    # Append metadata_task to metadata
+    # mode="json" makes sure SecretStr and other exotic types are converted into strings
+    metadata_json = metadata.model_dump(mode="json")
+    metadata_json['metadata_task'] = metadata_task
+
+    # Save the metadata to a json file in the eval_output_dir again (make_metadata was called before)
+    metadata_file_path = os.path.join(metadata.eval_output_dir, 'metadata.json')
+    with open(metadata_file_path, 'w') as f:
+        json.dump(metadata_json, f)
 
     output_file = os.path.join(metadata.eval_output_dir, 'output.jsonl')
 
