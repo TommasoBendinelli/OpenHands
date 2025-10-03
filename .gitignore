@@ -260,3 +260,9 @@ evaluation/benchmarks/data_science_bench/**/*.csv
 evaluation/benchmarks/data_science_bench/**/*.pdf
 figs/
 remove_feature_names.py
+
+
+# confidential
+evaluation/benchmarks/schurter/tasks/*
+evaluation/benchmarks/schurter/validation_prompts/*
+
