@@ -1,5 +1,6 @@
 import asyncio
-import os, json
+import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +15,6 @@ from evaluation.utils.shared import (
     codeact_user_response,
     get_default_sandbox_config_for_eval,
     make_metadata,
-    reset_logger_for_multiprocessing,
     run_evaluation,
 )
 from openhands.controller.state.state import State
@@ -190,8 +190,6 @@ def process_instance(
     reset_logger: bool = True,
     cfg: OmegaConf = None,
 ) -> EvalOutput:
-    instance_id = instance.instance_id  # .replace('/', '__')
-
     # # Set up the logger properly, so you can run multi-processing to parallelize the evaluation
     # if reset_logger:
     #     log_dir = os.path.join(metadata.eval_output_dir, 'infer_logs')
@@ -203,7 +201,7 @@ def process_instance(
     config = configure_app_for_evaluation(metadata, cfg)
     instruction = ''
 
-    base_path = Path(f'evaluation/benchmarks/schurter/tasks/')
+    base_path = Path('evaluation/benchmarks/schurter/tasks/')
     prompt_metadata_path = (
         base_path / 'questions' / f'prompt_{cfg.prompt_id}_metadata.json'
     )
@@ -211,9 +209,7 @@ def process_instance(
         prompt_metadata = json.load(f)
 
     instruction += f"""{prompt_metadata['question']} \n Any relevant information is provided in the folders and files in the /workspace. \n"""
-    instruction += (
-        f"""\n When you found an answer, provide your answer in the following format: Answer: <your answer> and finish the interaction."""
-    )
+    instruction += """\n When you found an answer, provide your answer in the following format: Answer: <your answer> and finish the interaction."""
     # instruction += f"""Use Python to find the answer."""
 
     # instruction += f"""\n Provide your answer in the following format: \n <issue> </issue> \n <solution> </solution>"""
@@ -357,14 +353,14 @@ def main(cfg):
     )
 
     # Save prompt_metadata in evaluation output dir
-    base_path = Path(f'evaluation/benchmarks/schurter/tasks/')
+    base_path = Path('evaluation/benchmarks/schurter/tasks/')
     prompt_metadata_path = (
         base_path / 'questions' / f'prompt_{cfg.prompt_id}_metadata.json'
     )
     with open(prompt_metadata_path, 'r') as f:
         prompt_metadata = json.load(f)
 
-    metadata_json = metadata.model_dump(mode="json")
+    metadata_json = metadata.model_dump(mode='json')
     metadata_json['metadata_prompt'] = prompt_metadata
 
     # Save the metadata to a json file in the eval_output_dir again (make_metadata was called before)

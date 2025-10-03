@@ -1,4 +1,6 @@
-from openhands.agenthub.codeact_agent_tickets_analysis.codeact_agent_tickets_analysis import CodeActAgentTicketsAnalysis
+from openhands.agenthub.codeact_agent_tickets_analysis.codeact_agent_tickets_analysis import (
+    CodeActAgentTicketsAnalysis,
+)
 from openhands.controller.agent import Agent
 
 Agent.register('CodeActAgentTicketsAnalysis', CodeActAgentTicketsAnalysis)
