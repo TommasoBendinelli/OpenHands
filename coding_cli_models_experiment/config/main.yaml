@@ -1,0 +1,17 @@
+# conf/config.yaml
+base_dir: /home/tommaso/repo/OpenHands/gpt_codex_experiment
+task: BallBouncingBetweenWalls
+
+model: claude
+sandbox: workspace-write
+effort: "high"
+
+diagrams: true
+data_broken: true
+data_clean: true
+
+include_time_until_everything_is_good: true
+
+hydra:
+  run:
+    dir: "."

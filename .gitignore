@@ -266,3 +266,7 @@ figs/
 output.json
 remove_feature_names.py
 old/
+
+# gpt_codex
+coding_cli_models_experiment/evaluation/*
+coding_cli_models_experiment/tasks/*

@@ -2,7 +2,7 @@ instance=simulink_simulation
 
 models=gemini-pro
 
-simulation_example=bouncing_ball/20250922_105116__262e5bc9
+simulation_example=BouncingBall/20250924_142654__e3c81612
 
 # bouncing_ball/20250922_105357__1e4b0c63
 
