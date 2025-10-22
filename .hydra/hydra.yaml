@@ -112,12 +112,14 @@ hydra:
     hydra:
     - hydra.mode=RUN
     task:
-    - model=gpt-5-codex
-    - task=BouncingBall
+    - model=claude
+    - explicitly_tell_to_use_matlplolib=False
+    - data_clean=False
+    - raise_on_error=true
   job:
     name: run_codex_v2
     chdir: null
-    override_dirname: model=gpt-5-codex,task=BouncingBall
+    override_dirname: data_clean=False,explicitly_tell_to_use_matlplolib=False,model=claude,raise_on_error=true
     id: ???
     num: ???
     config_name: main

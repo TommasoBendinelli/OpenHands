@@ -263,4 +263,6 @@ remove_feature_names.py
 evaluation/
 old/
 cleaned_data/
-coding_cli_models_experiment/
+coding_cli_models_experiment/evaluation
+coding_cli_models_experiment/tasks
+coding_cli_models_experiment/test

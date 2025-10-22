@@ -11,6 +11,8 @@ data_broken: true
 data_clean: true
 
 include_time_until_everything_is_good: true
+raise_on_error: false
+explicitly_tell_to_use_matlplolib: false
 
 hydra:
   run:

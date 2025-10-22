@@ -1,2 +1,4 @@
-- model=gpt-5-codex
-- task=BouncingBall
+- model=claude
+- explicitly_tell_to_use_matlplolib=False
+- data_clean=False
+- raise_on_error=true
