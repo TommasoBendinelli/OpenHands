@@ -49,22 +49,22 @@ def _warn_or_raise(cfg, message: str, exc_cls=RuntimeError):
 
 
 def _iter_instances(base_dir: Path, task: str):
-    legacy_root = base_dir / 'tasks' / task
-    if legacy_root.exists():
-        for dir_path in sorted(p for p in legacy_root.iterdir() if p.is_dir()):
-            metadata_path = dir_path / 'metadata_task.json'
-            if not metadata_path.exists():
-                continue
+    # breakpoint()
+    # if legacy_root.exists():
+    #     for dir_path in sorted(p for p in legacy_root.iterdir() if p.is_dir()):
+    #         metadata_path = dir_path / 'metadata_task.json'
+    #         if not metadata_path.exists():
+    #             continue
 
-            yield {
-                'name': dir_path.name,
-                'source_folder': dir_path,
-                'metadata_path': metadata_path,
-                'data_clean': dir_path / 'data_healthy.pkl',
-                'data_broken': dir_path / 'data_broken.pkl',
-                'diagram_candidates': [dir_path / 'diagrams', dir_path / 'diagram'],
-            }
-        return
+    #         yield {
+    #             'name': dir_path.name,
+    #             'source_folder': dir_path,
+    #             'metadata_path': metadata_path,
+    #             'data_clean': dir_path / 'data_healthy.pkl',
+    #             'data_broken': dir_path / 'data_broken.pkl',
+    #             'diagram_candidates': [dir_path / 'diagrams', dir_path / 'diagram'],
+    #         }
+    #     return
 
     cleaned_candidates = [
         base_dir / 'cleaned_data',
@@ -253,7 +253,7 @@ def main(cfg):
             )
 
         if cfg.explicitly_tell_to_use_matlplolib:
-            prompt += f"\n You should use matplotlib to inspect the data!"
+            prompt += f"\n You should use matplotlib to generate picture and then inspect this pictures to understand the data!"
 
 
         prompt += """\n Save your answer in results.json in the current directory."""
@@ -293,7 +293,7 @@ def main(cfg):
                 'stream-json',
             ]
 
-        print(f'==> Running {name} in {run_dir}')
+        print(f'==> Running {name} in {run_dir}. Original directory: {metadata["original_path"]}')
 
         with open(output_log, 'w') as log:
             result = subprocess.run(
@@ -312,6 +312,18 @@ def main(cfg):
             if not raise_errors:
                 continue
 
+        # Load correct answer from original metadata
+        correct_answer = None
+        if metadata.get('original_path'):
+            original_metadata_path = Path(metadata['original_path']) / 'metadata_task.json'
+            if original_metadata_path.exists():
+                try:
+                    with open(original_metadata_path, 'r') as f:
+                        original_metadata = json.load(f)
+                        correct_answer = original_metadata.get('correct_choice')
+                except (OSError, json.JSONDecodeError) as e:
+                    print(f'Warning: Could not load correct answer from {original_metadata_path}: {e}')
+
         # Save config as YAML
         base_cfg = OmegaConf.to_container(cfg, resolve=True)
         run_config = {
@@ -322,6 +334,9 @@ def main(cfg):
             'sandbox_mode': cfg.sandbox,
             'prompt': prompt,
         }
+
+        if correct_answer:
+            run_config['correct_answer'] = correct_answer
 
         with open(run_dir / 'config.yaml', 'w') as f:
             yaml.safe_dump(run_config, f, sort_keys=False)
