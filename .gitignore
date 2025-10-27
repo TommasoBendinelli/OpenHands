@@ -260,7 +260,7 @@ evaluation/benchmarks/data_science_bench/**/*.csv
 evaluation/benchmarks/data_science_bench/**/*.pdf
 figs/
 remove_feature_names.py
-evaluation/
+# evaluation/
 old/
 cleaned_data/
 coding_cli_models_experiment/evaluation

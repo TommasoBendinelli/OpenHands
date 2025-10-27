@@ -1,5 +1,5 @@
 import asyncio
-import os
+import os, re, json
 from pathlib import Path
 from typing import Any
 
@@ -127,7 +127,8 @@ def initialize_runtime(
             """
             data_path = base_path / cfg.instance
             for file in (data_path).glob('*'):
-                runtime.copy_to(file, '/workspace')
+                if file.name != 'ground_truth.md':
+                    runtime.copy_to(file, '/workspace')
 
         if cfg.instance == '03_context':
             """
@@ -359,24 +360,48 @@ def main(cfg):
         max_retries=cfg.max_retries,
     )
 
-    # Check if the trajectory visualiser folder exists
-    if not Path(cfg.trajectory_visualiser_folder).exists():
-        # Log a warning if the folder does not exist
-        logger.warning(
-            f'Trajectory visualiser folder {cfg.trajectory_visualiser_folder} does not exist. Creating it.'
-        )
-        # Create the trajectory visualiser folder if it does not exist
-        Path(cfg.trajectory_visualiser_folder).mkdir(parents=True, exist_ok=True)
-    target_path = Path(cfg.trajectory_visualiser_folder) / 'output.jsonl'
-    if not target_path.exists():
-        # Create an empty file if it doesn't exist
-        target_path.touch()
+    # Open output.jsonl
+    with open(output_file, 'r') as f:
+        output = json.load(f)
+
+    base_path = Path('evaluation/benchmarks/maxon/tasks/')
+
+    def extract_ground_truth_from_task():
+        data_path = f'{base_path}/{cfg.instance}/{cfg.ticket_file}_gt.md'
+        with open(data_path, 'r') as f:
+            content = f.read()
+        # Extract everything after '# Expected Result'
+        match = re.search(r'# Expected Result\s*(.*)', content, flags=re.DOTALL)
+        if match:
+            expected_result = match.group(1).strip()
+        return expected_result
+
+    if cfg.instance == '01_log_solution_within_1000':
+        output['ground_truth'] = extract_ground_truth_from_task()
+
+    if cfg.instance == '02_specific_motor_type':
+        # Open ground truth mardkown file
+        data_path = f'{base_path}/{cfg.instance}/ground_truth.md'
+        with open(data_path, 'r') as f:
+            content = f.read()
+        output['ground_truth'] = content
+
+    if cfg.instance == '03_context':
+        output['ground_truth'] = extract_ground_truth_from_task()
+
+    if cfg.instance == '04_specific_log_file':
+        output['ground_truth'] = extract_ground_truth_from_task()
+
+    # Save output.jsonl
+    with open(output_file, 'w') as f:
+        json.dump(output, f)
 
     # Open the output file file
     with open(output_file, 'r') as f:
         # Read the content of the file
         content = f.read()
 
+    target_path = Path(cfg.trajectory_visualiser_folder) / 'output.jsonl'
     safe_append(path=target_path, text=content)
     # Open the output file and read the sid
     kill_instance(output_file)
