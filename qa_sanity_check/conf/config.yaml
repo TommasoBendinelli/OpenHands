@@ -1,0 +1,27 @@
+api:
+  base_url: "http://10.55.64.55:30000/v1"
+  key_env: null
+
+request:
+  model: "openai/swiss-ai/Apertus-8B-Instruct-2509"
+  temperature: 0.5
+  max_tokens: 512
+  messages:
+    - role: system
+      content: "You are an evaluation assistant helping to test model quality."
+    - role: user
+      content: "Generate a script that finds the factorial of a number in Python."
+
+  instance_type: "maxon"
+  instance: "04_specific_log_file"
+  ticket_file: "UseCase_EncoderError"
+
+output:
+  save_text: true
+  save_json: true
+
+hydra:
+  run:
+    dir: evaluation/outputs/${now:%Y%m%d_%H%M%S}
+  job:
+    chdir: true

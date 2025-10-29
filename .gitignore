@@ -270,3 +270,9 @@ old/
 # gpt_codex
 coding_cli_models_experiment/evaluation/*
 coding_cli_models_experiment/tasks/*
+
+
+# qa_sanity_check
+qa_sanity_check/evaluation/*
+qa_sanity_check/multirun/*
+qa_sanity_check/tasks/*
