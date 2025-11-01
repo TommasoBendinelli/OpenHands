@@ -515,6 +515,11 @@ def process_instance(
             output_command = runtime.run_action(
                 CmdRunAction(command='python3 /mnt/compute_metric.py')
             )
+            if (
+                isinstance(output_command, CmdOutputObservation)
+                and output_command.exit_code != 0
+            ):
+                state.last_error = output_command.content
             try:
                 tmp = float(output_command.content.split(':')[1])
                 scores.append(tmp)
